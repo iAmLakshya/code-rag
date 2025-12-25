@@ -1,0 +1,391 @@
+/* Code RAG TUI Styles */
+
+/* Global */
+Screen {
+    background: $surface;
+}
+
+/* Header */
+#header {
+    dock: top;
+    height: 3;
+    background: $primary;
+    color: $text;
+    text-align: center;
+    padding: 1;
+}
+
+#header-title {
+    text-style: bold;
+}
+
+/* Footer */
+#footer {
+    dock: bottom;
+    height: 1;
+    background: $primary-darken-2;
+    color: $text-muted;
+}
+
+/* Home Screen */
+#home-container {
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+#welcome-box {
+    width: 80;
+    height: auto;
+    border: solid $primary;
+    padding: 2;
+}
+
+#welcome-title {
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#path-input {
+    width: 100%;
+    margin: 1 0;
+}
+
+#action-buttons {
+    align: center middle;
+    margin-top: 1;
+    height: auto;
+}
+
+#action-buttons Button {
+    margin: 0 1;
+}
+
+#index-status {
+    height: 2;
+    margin: 1 0;
+    text-align: center;
+}
+
+.status-text {
+    color: $text-muted;
+}
+
+.subtitle {
+    color: $text-muted;
+    text-align: center;
+}
+
+/* Indexing Screen */
+#indexing-container {
+    padding: 1 2;
+}
+
+#overall-progress {
+    margin: 1 0;
+}
+
+#stage-label {
+    margin: 1 0;
+}
+
+#current-file {
+    color: $text-muted;
+    margin: 0 0 1 0;
+}
+
+#stats-container {
+    height: auto;
+    margin: 1 0;
+    border: solid $primary-darken-2;
+    padding: 1;
+}
+
+#stats-grid {
+    grid-size: 4;
+    grid-columns: 1fr 1fr 1fr 1fr;
+    height: auto;
+}
+
+.stat-box {
+    height: 3;
+    padding: 0 1;
+    text-align: center;
+}
+
+.stat-value {
+    text-style: bold;
+    color: $success;
+}
+
+#log-container {
+    height: 1fr;
+    border: solid $primary-darken-2;
+    margin-top: 1;
+}
+
+#indexing-log {
+    height: 100%;
+}
+
+#button-container {
+    align: center middle;
+    height: auto;
+    margin-top: 1;
+}
+
+#button-container Button {
+    margin: 0 1;
+}
+
+/* Query Screen */
+#query-container {
+    height: 100%;
+}
+
+#query-header {
+    dock: top;
+    height: 3;
+    padding: 1;
+    background: $surface-darken-1;
+}
+
+#repo-info {
+    color: $text-muted;
+}
+
+#query-body {
+    height: 1fr;
+}
+
+#query-input-container {
+    dock: top;
+    height: 5;
+    padding: 1;
+    border-bottom: solid $primary-darken-2;
+}
+
+#query-input {
+    width: 100%;
+}
+
+#results-container {
+    height: 1fr;
+}
+
+#chat-panel {
+    width: 1fr;
+    border-right: solid $primary-darken-2;
+    padding: 1;
+}
+
+#chat-log {
+    height: 100%;
+    scrollbar-gutter: stable;
+}
+
+#source-panel {
+    width: 1fr;
+    padding: 1;
+}
+
+#source-preview {
+    height: 100%;
+    border: solid $primary-darken-2;
+}
+
+/* Chat Messages */
+.user-message {
+    background: $primary-darken-1;
+    margin: 1 0;
+    padding: 1;
+    border: solid $primary;
+}
+
+.assistant-message {
+    background: $surface-darken-1;
+    margin: 1 0;
+    padding: 1;
+}
+
+/* Settings Screen */
+#settings-container {
+    padding: 2;
+    align: center top;
+}
+
+#settings-form {
+    width: 80;
+    align: center middle;
+}
+
+.setting-group {
+    margin: 1 0;
+    padding: 1;
+    border: solid $primary-darken-2;
+}
+
+.setting-label {
+    margin-bottom: 1;
+}
+
+/* Loading indicator */
+LoadingIndicator {
+    background: $surface;
+}
+
+/* Buttons */
+Button {
+    margin: 0 1;
+}
+
+Button.primary {
+    background: $primary;
+}
+
+Button.success {
+    background: $success;
+}
+
+Button.warning {
+    background: $warning;
+}
+
+Button.error {
+    background: $error;
+}
+
+/* Projects Screen */
+#projects-container {
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+#projects-box {
+    width: 90%;
+    max-width: 120;
+    height: auto;
+    border: solid $primary;
+    padding: 2;
+}
+
+#projects-title {
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#table-container {
+    height: 15;
+    border: solid $primary-darken-2;
+    margin: 1 0;
+}
+
+#projects-table {
+    height: 100%;
+}
+
+#projects-buttons {
+    align: center middle;
+    margin-top: 1;
+    height: auto;
+}
+
+#projects-buttons Button {
+    margin: 0 1;
+}
+
+#secondary-buttons {
+    align: center middle;
+    margin-top: 1;
+    height: auto;
+}
+
+#secondary-buttons Button {
+    margin: 0 1;
+}
+
+/* Project Detail Screen */
+#detail-container {
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+#detail-box {
+    width: 90%;
+    max-width: 120;
+    height: auto;
+    border: solid $primary;
+    padding: 2;
+}
+
+#detail-title {
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#project-stats {
+    padding: 1;
+    border: solid $primary-darken-2;
+    margin: 1 0;
+}
+
+#indexes-container {
+    height: 10;
+    border: solid $primary-darken-2;
+    margin: 1 0;
+}
+
+#indexes-table {
+    height: 100%;
+}
+
+#detail-buttons {
+    align: center middle;
+    margin-top: 1;
+    height: auto;
+}
+
+#detail-buttons Button {
+    margin: 0 1;
+}
+
+/* Confirm Delete Screen */
+#confirm-container {
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+#confirm-box {
+    width: 60;
+    height: auto;
+    border: solid $error;
+    padding: 2;
+    background: $surface-darken-1;
+}
+
+#confirm-title {
+    text-align: center;
+    text-style: bold;
+    color: $error;
+    margin-bottom: 1;
+}
+
+#confirm-message {
+    text-align: center;
+}
+
+#confirm-buttons {
+    align: center middle;
+    margin-top: 1;
+    height: auto;
+}
+
+#confirm-buttons Button {
+    margin: 0 1;
+}
