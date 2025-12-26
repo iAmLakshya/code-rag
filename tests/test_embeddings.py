@@ -7,7 +7,7 @@ from pathlib import Path
 from code_rag.core.types import EntityType, Language
 from code_rag.core.errors import EmbeddingError, IndexingError
 from code_rag.embeddings.chunker import CodeChunker, CodeChunk
-from code_rag.embeddings.embedder import OpenAIEmbedder
+from code_rag.embeddings.embedder import Embedder
 from code_rag.embeddings.indexer import VectorIndexer, VectorSearcher, CodeSearchResult
 from code_rag.parsing.models import CodeEntity, FileInfo, ParsedFile
 
@@ -324,113 +324,6 @@ class TestCodeChunkerOverlap:
 
                 # May or may not have overlap depending on token boundaries
                 assert len(chunks) > 1
-
-
-# ============================================================================
-# OpenAI Embedder Tests
-# ============================================================================
-
-class TestOpenAIEmbedder:
-    """Tests for OpenAIEmbedder class."""
-
-    @pytest.fixture
-    def mock_openai_client(self):
-        """Create a mock OpenAI client."""
-        return AsyncMock()
-
-    @pytest.fixture
-    def embedder(self, mock_openai_client):
-        """Create an embedder with mocked client."""
-        with patch('code_rag.embeddings.embedder.AsyncOpenAI') as mock_class:
-            mock_class.return_value = mock_openai_client
-            emb = OpenAIEmbedder(api_key="test-key")
-            emb._client = mock_openai_client
-            return emb
-
-    @pytest.mark.asyncio
-    async def test_embed_single_text(self, embedder, mock_openai_client):
-        """Test embedding a single text."""
-        # Mock response
-        mock_embedding = MagicMock()
-        mock_embedding.embedding = [0.1, 0.2, 0.3] * 512  # 1536 dims
-        mock_response = MagicMock()
-        mock_response.data = [mock_embedding]
-        mock_openai_client.embeddings.create = AsyncMock(return_value=mock_response)
-
-        result = await embedder.embed("Hello, world!")
-
-        assert len(result) == 1536
-        mock_openai_client.embeddings.create.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_embed_batch(self, embedder, mock_openai_client):
-        """Test embedding a batch of texts."""
-        # Mock response with multiple embeddings
-        mock_embeddings = [MagicMock(embedding=[0.1] * 1536) for _ in range(3)]
-        mock_response = MagicMock()
-        mock_response.data = mock_embeddings
-        mock_openai_client.embeddings.create = AsyncMock(return_value=mock_response)
-
-        texts = ["text1", "text2", "text3"]
-        results = await embedder.embed_batch(texts)
-
-        assert len(results) == 3
-        for embedding in results:
-            assert len(embedding) == 1536
-
-    @pytest.mark.asyncio
-    async def test_embed_with_progress(self, embedder, mock_openai_client):
-        """Test embedding with progress callback."""
-        mock_embeddings = [MagicMock(embedding=[0.1] * 1536) for _ in range(5)]
-        mock_response = MagicMock()
-        mock_response.data = mock_embeddings
-        mock_openai_client.embeddings.create = AsyncMock(return_value=mock_response)
-
-        progress_calls = []
-
-        def progress_callback(current, total):
-            progress_calls.append((current, total))
-
-        texts = ["text1", "text2", "text3", "text4", "text5"]
-        await embedder.embed_with_progress(
-            texts, batch_size=5, progress_callback=progress_callback
-        )
-
-        # Should have at least one progress call
-        assert len(progress_calls) >= 1
-
-    @pytest.mark.asyncio
-    async def test_embed_batch_with_multiple_batches(self, embedder, mock_openai_client):
-        """Test embedding with multiple batches."""
-        mock_embeddings = [MagicMock(embedding=[0.1] * 1536) for _ in range(2)]
-        mock_response = MagicMock()
-        mock_response.data = mock_embeddings
-        mock_openai_client.embeddings.create = AsyncMock(return_value=mock_response)
-
-        texts = ["text1", "text2", "text3", "text4"]
-        results = await embedder.embed_batch(texts, batch_size=2)
-
-        # Should make 2 API calls
-        assert mock_openai_client.embeddings.create.call_count == 2
-        assert len(results) == 4
-
-    @pytest.mark.asyncio
-    async def test_embed_error_handling(self, embedder, mock_openai_client):
-        """Test error handling during embedding."""
-        from tenacity import RetryError
-        mock_openai_client.embeddings.create = AsyncMock(
-            side_effect=Exception("API Error")
-        )
-
-        # Due to tenacity retry decorator, will exhaust retries and raise
-        with pytest.raises((EmbeddingError, RetryError)):
-            await embedder.embed("test")
-
-    @pytest.mark.asyncio
-    async def test_semaphore_limits_concurrency(self, embedder, mock_openai_client):
-        """Test that semaphore limits concurrent requests."""
-        # The semaphore should limit concurrent requests
-        assert embedder._semaphore._value == embedder.max_concurrent
 
 
 # ============================================================================

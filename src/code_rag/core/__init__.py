@@ -1,5 +1,10 @@
 """Core abstractions and shared utilities for code-rag."""
 
+from code_rag.core.cache import (
+    ASTCache,
+    BoundedCache,
+    FunctionRegistry,
+)
 from code_rag.core.protocols import (
     Embedder,
     GraphClient,
@@ -25,7 +30,10 @@ from code_rag.core.errors import (
 )
 
 __all__ = [
+    "ASTCache",
+    "BoundedCache",
     "Embedder",
+    "FunctionRegistry",
     "GraphClient",
     "LLMProvider",
     "VectorStore",

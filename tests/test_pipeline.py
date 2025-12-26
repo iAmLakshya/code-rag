@@ -156,6 +156,7 @@ class TestPipelineWithMocks:
 
             # Setup mock context
             from code_rag.pipeline.orchestrator import PipelineContext
+            from code_rag.core.cache import FunctionRegistry
             mock_ctx = MagicMock(spec=PipelineContext)
             mock_ctx.repo_path = orchestrator.repo_path
             mock_ctx.project_name = orchestrator.project_name
@@ -164,6 +165,11 @@ class TestPipelineWithMocks:
             mock_ctx.scanned_files = []
             mock_ctx.parsed_files = []
             mock_ctx.file_update_status = {}
+            # Add required attributes for call resolution
+            mock_ctx.function_registry = FunctionRegistry()
+            mock_ctx.import_processor = None
+            mock_ctx.inheritance_tracker = None
+            mock_ctx.call_processor = None
             mock_init.return_value = mock_ctx
 
             try:
@@ -240,6 +246,7 @@ class TestPipelineEdgeCases:
              patch.object(orchestrator, '_execute_embedding_stage', new_callable=AsyncMock):
 
             from code_rag.pipeline.orchestrator import PipelineContext
+            from code_rag.core.cache import FunctionRegistry
             mock_ctx = MagicMock(spec=PipelineContext)
             mock_ctx.repo_path = orchestrator.repo_path
             mock_ctx.project_name = orchestrator.project_name
@@ -248,6 +255,11 @@ class TestPipelineEdgeCases:
             mock_ctx.scanned_files = []
             mock_ctx.parsed_files = []
             mock_ctx.file_update_status = {}
+            # Add required attributes for call resolution
+            mock_ctx.function_registry = FunctionRegistry()
+            mock_ctx.import_processor = None
+            mock_ctx.inheritance_tracker = None
+            mock_ctx.call_processor = None
             mock_init.return_value = mock_ctx
 
             result = await orchestrator.run()
@@ -272,6 +284,7 @@ class TestPipelineEdgeCases:
              patch.object(orchestrator, '_execute_embedding_stage', new_callable=AsyncMock):
 
             from code_rag.pipeline.orchestrator import PipelineContext
+            from code_rag.core.cache import FunctionRegistry
             mock_ctx = MagicMock(spec=PipelineContext)
             mock_ctx.repo_path = orchestrator.repo_path
             mock_ctx.project_name = orchestrator.project_name
@@ -280,6 +293,11 @@ class TestPipelineEdgeCases:
             mock_ctx.scanned_files = []
             mock_ctx.parsed_files = []
             mock_ctx.file_update_status = {}
+            # Add required attributes for call resolution
+            mock_ctx.function_registry = FunctionRegistry()
+            mock_ctx.import_processor = None
+            mock_ctx.inheritance_tracker = None
+            mock_ctx.call_processor = None
             mock_init.return_value = mock_ctx
 
             result = await orchestrator.run()

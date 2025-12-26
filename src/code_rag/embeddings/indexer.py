@@ -325,14 +325,6 @@ class VectorSearcher:
     def _format_code_results(
         self, results: list[dict]
     ) -> list[CodeSearchResult]:
-        """Format code search results.
-
-        Args:
-            results: Raw search results from Qdrant.
-
-        Returns:
-            Formatted code search results.
-        """
         return [
             CodeSearchResult(
                 score=result["score"],
@@ -349,14 +341,6 @@ class VectorSearcher:
     def _format_summary_results(
         self, results: list[dict]
     ) -> list[SummarySearchResult]:
-        """Format summary search results.
-
-        Args:
-            results: Raw search results from Qdrant.
-
-        Returns:
-            Formatted summary search results.
-        """
         return [
             SummarySearchResult(
                 score=result["score"],

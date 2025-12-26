@@ -101,24 +101,17 @@ class RankingConfig:
         """Initialize query-type adjustments."""
         if not self.query_type_adjustments:
             self.query_type_adjustments = {
-                # Structural queries - boost graph results
                 QueryIntent.FIND_CALLERS: {"graph_weight": 0.8, "vector_weight": 0.2},
                 QueryIntent.FIND_CALLEES: {"graph_weight": 0.8, "vector_weight": 0.2},
                 QueryIntent.FIND_CALL_CHAIN: {"graph_weight": 0.9, "vector_weight": 0.1},
                 QueryIntent.FIND_HIERARCHY: {"graph_weight": 0.85, "vector_weight": 0.15},
                 QueryIntent.FIND_USAGES: {"graph_weight": 0.7, "vector_weight": 0.3},
                 QueryIntent.FIND_DEPENDENCIES: {"graph_weight": 0.75, "vector_weight": 0.25},
-
-                # Navigational queries - balanced
                 QueryIntent.LOCATE_ENTITY: {"graph_weight": 0.6, "vector_weight": 0.4},
                 QueryIntent.LOCATE_FILE: {"graph_weight": 0.5, "vector_weight": 0.5},
-
-                # Explanatory queries - need both
                 QueryIntent.EXPLAIN_IMPLEMENTATION: {"graph_weight": 0.5, "vector_weight": 0.5},
                 QueryIntent.EXPLAIN_RELATIONSHIP: {"graph_weight": 0.6, "vector_weight": 0.4},
                 QueryIntent.EXPLAIN_DATA_FLOW: {"graph_weight": 0.65, "vector_weight": 0.35},
-
-                # Semantic queries - boost vector results
                 QueryIntent.FIND_SIMILAR: {"graph_weight": 0.2, "vector_weight": 0.8},
                 QueryIntent.SEARCH_FUNCTIONALITY: {"graph_weight": 0.3, "vector_weight": 0.7},
                 QueryIntent.SEARCH_PATTERN: {"graph_weight": 0.25, "vector_weight": 0.75},
@@ -361,18 +354,15 @@ class HybridRanker:
         """
         signals = {}
 
-        # Base graph match score
         base_score = 1.0
         if is_primary:
             base_score = 1.0
         elif is_caller or is_callee:
-            # Reduce score based on depth
             depth = result.depth_from_query or 1
             base_score = max(0.3, 1.0 - (depth - 1) * 0.2)
 
         signals[RankingSignal.GRAPH_MATCH.value] = base_score
 
-        # Query entity match bonus
         entity_match = 0.0
         if result.entity_name.lower() in query_entities:
             entity_match = 1.0
@@ -380,7 +370,6 @@ class HybridRanker:
             entity_match = 0.5
         signals[RankingSignal.QUERY_ENTITY_MATCH.value] = entity_match
 
-        # Relationship relevance
         rel_score = 0.0
         if is_primary:
             rel_score = 1.0
@@ -392,17 +381,14 @@ class HybridRanker:
             rel_score = 0.5
         signals[RankingSignal.RELATIONSHIP_RELEVANCE.value] = rel_score
 
-        # Centrality score
         centrality_score = 0.0
         entity_key = result.qualified_name or result.entity_name
         if entity_key in centrality_scores:
             scores = centrality_scores[entity_key]
             total_degree = scores.get("total_degree", 0)
-            # Normalize: assume max degree is around 50
             centrality_score = min(1.0, total_degree / 50)
         signals[RankingSignal.CENTRALITY.value] = centrality_score
 
-        # Context richness
         context_score = 0.0
         if result.summary:
             context_score += 0.3
@@ -414,7 +400,6 @@ class HybridRanker:
             context_score += 0.3
         signals[RankingSignal.CONTEXT_RICHNESS.value] = context_score
 
-        # Compute final score
         final_score = (
             signals[RankingSignal.GRAPH_MATCH.value] * weights["graph_weight"]
             + signals.get(RankingSignal.QUERY_ENTITY_MATCH.value, 0) * self.config.entity_match_bonus
@@ -446,10 +431,8 @@ class HybridRanker:
         """
         signals = {}
 
-        # Vector similarity score (already normalized 0-1)
         signals[RankingSignal.VECTOR_SIMILARITY.value] = vector_score
 
-        # Query entity match bonus
         entity_match = 0.0
         if result.entity_name.lower() in query_entities:
             entity_match = 1.0
@@ -457,7 +440,6 @@ class HybridRanker:
             entity_match = 0.5
         signals[RankingSignal.QUERY_ENTITY_MATCH.value] = entity_match
 
-        # Centrality score
         centrality_score = 0.0
         entity_key = result.qualified_name or result.entity_name
         if entity_key in centrality_scores:
@@ -466,11 +448,9 @@ class HybridRanker:
             centrality_score = min(1.0, total_degree / 50)
         signals[RankingSignal.CENTRALITY.value] = centrality_score
 
-        # Code quality signals
         quality_score = 0.0
         if result.content:
             content_len = len(result.content)
-            # Prefer medium-length snippets (not too short, not too long)
             if 100 < content_len < 2000:
                 quality_score = 0.8
             elif 50 < content_len < 3000:
@@ -479,7 +459,6 @@ class HybridRanker:
                 quality_score = 0.3
         signals[RankingSignal.CODE_QUALITY.value] = quality_score
 
-        # Compute final score
         final_score = (
             signals[RankingSignal.VECTOR_SIMILARITY.value] * weights["vector_weight"]
             + signals.get(RankingSignal.QUERY_ENTITY_MATCH.value, 0) * self.config.entity_match_bonus
@@ -509,11 +488,9 @@ class HybridRanker:
         else:
             existing = results_map[key]
 
-            # Combine scores (hybrid)
             combined_score = (existing.final_score + result.final_score) / 2
-            combined_score *= 1.1  # Boost for appearing in both sources
+            combined_score *= 1.1
 
-            # Take the better content
             if not existing.content and result.content:
                 existing.content = result.content
             if not existing.summary and result.summary:
@@ -523,7 +500,6 @@ class HybridRanker:
             if not existing.docstring and result.docstring:
                 existing.docstring = result.docstring
 
-            # Merge signal scores
             for signal, score in result.signal_scores.items():
                 if signal in existing.signal_scores:
                     existing.signal_scores[signal] = max(existing.signal_scores[signal], score)
@@ -549,11 +525,9 @@ class HybridRanker:
         for result in results:
             key = result.get_key()
 
-            # Skip exact duplicates
             if key in seen_keys:
                 continue
 
-            # Apply per-file limit
             file_count = file_counts.get(result.file_path, 0)
             if file_count >= self.config.max_per_file:
                 continue
@@ -562,7 +536,6 @@ class HybridRanker:
             file_counts[result.file_path] = file_count + 1
             deduplicated.append(result)
 
-            # Apply total limit
             if len(deduplicated) >= self.config.max_total:
                 break
 

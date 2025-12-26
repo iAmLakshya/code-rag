@@ -61,26 +61,21 @@ class FileScanner:
             FileInfo objects for each discovered file.
         """
         for file_path in self.root_path.rglob("*"):
-            # Skip directories
             if file_path.is_dir():
                 continue
 
-            # Check if should be ignored
             relative = file_path.relative_to(self.root_path)
             if self._should_ignore(relative):
                 continue
 
-            # Check extension
             ext = file_path.suffix.lower()
             if ext not in self.extensions:
                 continue
 
-            # Get language
             language = Language.from_extension(ext)
             if language is None:
                 continue
 
-            # Read file and compute hash
             try:
                 content = file_path.read_bytes()
                 content_hash = self._compute_hash(content)

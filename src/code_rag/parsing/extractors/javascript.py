@@ -26,7 +26,6 @@ class JavaScriptExtractor(BaseExtractor):
             # Handle default import
             import_clause = self._find_child_by_type(node, "import_clause")
             if import_clause:
-                # Default import: import foo from 'bar'
                 for child in import_clause.children:
                     if child.type == "identifier":
                         imports.append(
@@ -38,7 +37,6 @@ class JavaScriptExtractor(BaseExtractor):
                             )
                         )
 
-                # Named imports: import { foo, bar as baz } from 'module'
                 named_imports = self._find_child_by_type(import_clause, "named_imports")
                 if named_imports:
                     for child in named_imports.children:
@@ -62,7 +60,6 @@ class JavaScriptExtractor(BaseExtractor):
                                     )
                                 )
 
-                # Namespace import: import * as foo from 'bar'
                 namespace_import = self._find_child_by_type(
                     import_clause, "namespace_import"
                 )
@@ -79,7 +76,6 @@ class JavaScriptExtractor(BaseExtractor):
                             )
                         )
 
-        # Also handle require() calls
         for node in self._walk_tree(root_node, {"call_expression"}):
             func_node = node.children[0] if node.children else None
             if func_node and self._get_node_text(func_node, source) == "require":
@@ -275,6 +271,7 @@ class JavaScriptExtractor(BaseExtractor):
         )
 
     def _extract_jsdoc(self, node, source: str) -> str | None:
+        """Extract JSDoc comment if present before the node."""
         start_line = self._get_node_line(node)
         lines = source.split("\n")
 

@@ -33,18 +33,12 @@ class GraphSchema:
         self.client = client
 
     def _generate_index_queries(self) -> list[str]:
-        """Generate index creation queries from definitions.
-
-        Returns:
-            List of CREATE INDEX queries.
-        """
         return [
             f"CREATE INDEX ON :{label}({property});"
             for label, property in self.INDEX_DEFINITIONS
         ]
 
     async def setup(self) -> None:
-        """Create all indexes and constraints."""
         queries = self._generate_index_queries()
         for query in queries:
             try:
@@ -53,7 +47,6 @@ class GraphSchema:
                 logger.warning(f"Index creation skipped (may already exist): {e}")
 
     async def reset(self) -> None:
-        """Clear all data and recreate schema."""
         await self.client.clear_database()
         await self.setup()
 

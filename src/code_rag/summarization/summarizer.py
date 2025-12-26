@@ -1,39 +1,43 @@
-"""AI-powered code summarization using OpenAI."""
+"""AI-powered code summarization.
+
+Supports multiple LLM providers:
+- OpenAI (default)
+- Ollama (local)
+- Anthropic (Claude)
+- Google (Gemini)
+"""
 
 import asyncio
 import logging
 from typing import Callable
-
-from openai import AsyncOpenAI
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from code_rag.config import get_settings
 from code_rag.core.errors import SummarizationError
 from code_rag.core.protocols import LLMProvider
 from code_rag.core.types import EntityType
 from code_rag.parsing.models import CodeEntity, ParsedFile
+from code_rag.providers import get_llm_provider
+from code_rag.providers.base import BaseLLMProvider
 from code_rag.summarization.prompts import SummaryPrompts
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_TOKENS = 500
 DEFAULT_TEMPERATURE = 0.7
-DEFAULT_RETRY_ATTEMPTS = 3
-DEFAULT_RETRY_MIN_WAIT = 1
-DEFAULT_RETRY_MAX_WAIT = 30
-DEFAULT_RETRY_MULTIPLIER = 1
 
 SYSTEM_MESSAGE = "You are a code analysis assistant. Provide concise, accurate summaries of code."
 
 
 class CodeSummarizer:
-    """Generates AI summaries for code entities using an LLM provider."""
+    """Generates AI summaries for code entities using configurable LLM providers."""
 
     def __init__(
         self,
-        llm_provider: LLMProvider | None = None,
-        api_key: str | None = None,
+        llm_provider: LLMProvider | BaseLLMProvider | None = None,
+        provider: str | None = None,
         model: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
         max_concurrent: int | None = None,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float | None = None,
@@ -41,22 +45,36 @@ class CodeSummarizer:
         """Initialize the summarizer.
 
         Args:
-            llm_provider: LLM provider instance. If None, creates OpenAI client.
-            api_key: OpenAI API key. Defaults to settings.
+            llm_provider: LLM provider instance. If None, creates from settings.
+            provider: Provider name (openai, ollama, anthropic, google).
             model: LLM model name. Defaults to settings.
+            api_key: API key. Defaults to settings.
+            base_url: Custom base URL (for Ollama).
             max_concurrent: Max concurrent API calls. Defaults to settings.
             max_tokens: Maximum tokens for summaries.
             temperature: LLM temperature. Defaults to settings.
         """
         settings = get_settings()
-        self._llm_provider = llm_provider
-        self.model = model or settings.llm_model
         self.max_tokens = max_tokens
-        self.temperature = temperature if temperature is not None else settings.llm_temperature
+        self.temperature = temperature if temperature is not None else DEFAULT_TEMPERATURE
         self.max_concurrent = max_concurrent or settings.max_concurrent_requests
 
-        if self._llm_provider is None:
-            self._client = AsyncOpenAI(api_key=api_key or settings.openai_api_key)
+        # Use provided LLM provider or create one from settings
+        if llm_provider is not None:
+            self._llm_provider = llm_provider
+        else:
+            self._llm_provider = get_llm_provider(
+                provider=provider,
+                model=model,
+                api_key=api_key,
+                base_url=base_url,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
+
+        # Set concurrency if provider supports it
+        if hasattr(self._llm_provider, 'set_concurrency'):
+            self._llm_provider.set_concurrency(self.max_concurrent)
 
         self._semaphore = asyncio.Semaphore(self.max_concurrent)
         self._summarization_strategies = {
@@ -65,14 +83,11 @@ class CodeSummarizer:
             EntityType.METHOD: self._summarize_function,
         }
 
-    @retry(
-        stop=stop_after_attempt(DEFAULT_RETRY_ATTEMPTS),
-        wait=wait_exponential(
-            multiplier=DEFAULT_RETRY_MULTIPLIER,
-            min=DEFAULT_RETRY_MIN_WAIT,
-            max=DEFAULT_RETRY_MAX_WAIT,
-        ),
-    )
+        logger.info(
+            f"Initialized CodeSummarizer with "
+            f"{getattr(self._llm_provider, 'config', {})}"
+        )
+
     async def _complete(self, system_message: str, user_message: str) -> str:
         """Generate completion using LLM provider.
 
@@ -88,26 +103,14 @@ class CodeSummarizer:
         """
         try:
             async with self._semaphore:
-                if self._llm_provider:
-                    return await self._llm_provider.complete(
-                        messages=[
-                            {"role": "system", "content": system_message},
-                            {"role": "user", "content": user_message},
-                        ],
-                        max_tokens=self.max_tokens,
-                        temperature=self.temperature,
-                    )
-                else:
-                    response = await self._client.chat.completions.create(
-                        model=self.model,
-                        messages=[
-                            {"role": "system", "content": system_message},
-                            {"role": "user", "content": user_message},
-                        ],
-                        temperature=self.temperature,
-                        max_tokens=self.max_tokens,
-                    )
-                    return response.choices[0].message.content.strip()
+                return await self._llm_provider.complete(
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message},
+                    ],
+                    max_tokens=self.max_tokens,
+                    temperature=self.temperature,
+                )
         except Exception as e:
             logger.error(f"LLM completion failed: {e}")
             raise SummarizationError("Failed to generate summary", cause=e)

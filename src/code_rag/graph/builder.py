@@ -1,25 +1,49 @@
 """Graph builder for constructing knowledge graph from parsed code."""
 
+from __future__ import annotations
+
 import logging
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from code_rag.core.errors import GraphError
 from code_rag.graph.client import MemgraphClient
 from code_rag.graph.queries import EntityQueries, FileQueries, ProjectQueries, RelationshipQueries
 from code_rag.parsing.models import CodeEntity, EntityType, ParsedFile
 
+if TYPE_CHECKING:
+    from code_rag.parsing.call_processor import CallProcessor
+
 logger = logging.getLogger(__name__)
 
 
 class GraphBuilder:
-    """Builds the knowledge graph from parsed code files."""
+    """Builds the knowledge graph from parsed code files.
 
-    def __init__(self, client: MemgraphClient):
+    Optionally uses CallProcessor for enhanced call resolution with:
+    - Inheritance chain resolution
+    - Import-based resolution
+    - Type inference for method calls
+    """
+
+    def __init__(
+        self,
+        client: MemgraphClient,
+        call_processor: "CallProcessor | None" = None,
+        project_name: str | None = None,
+    ):
         """Initialize graph builder.
 
         Args:
             client: Memgraph client instance.
+            call_processor: Optional processor for enhanced call resolution.
+            project_name: Project name for qualified name resolution.
         """
         self.client = client
+        self.call_processor = call_processor
+        self.project_name = project_name
+        self._current_file_path: str | None = None
+        self._current_module_qn: str | None = None
 
     async def create_project(self, name: str, path: str) -> None:
         """Create or update a project node.
@@ -67,6 +91,13 @@ class GraphBuilder:
             parsed_file: Parsed file with entities.
         """
         file_path = str(parsed_file.file_info.path)
+
+        # Set context for call resolution
+        self._current_file_path = file_path
+        self._current_module_qn = self._file_to_module_qn(
+            parsed_file.file_info.relative_path
+        )
+        self._current_language = parsed_file.file_info.language.value
 
         await self.client.execute(
             FileQueries.CREATE_FILE,
@@ -125,15 +156,6 @@ class GraphBuilder:
         entity: CodeEntity,
         file_path: str,
     ) -> dict:
-        """Build common entity properties.
-
-        Args:
-            entity: Code entity.
-            file_path: File path.
-
-        Returns:
-            Dictionary of common properties.
-        """
         return {
             "qualified_name": entity.qualified_name,
             "name": entity.name,
@@ -170,27 +192,60 @@ class GraphBuilder:
 
         await self.client.execute(query, params)
 
+    def _file_to_module_qn(self, relative_path: str) -> str:
+        """Convert file path to module qualified name."""
+        path = Path(relative_path)
+        parts = list(path.with_suffix("").parts)
+        if parts and parts[-1] == "__init__":
+            parts = parts[:-1]
+        base = f"{self.project_name}.{'.'.join(parts)}" if parts else self.project_name
+        return base if self.project_name else ".".join(parts)
+
     async def _create_calls_relationships(
         self,
         caller_name: str,
         calls_list: list[str],
+        class_context: str | None = None,
     ) -> None:
         """Create CALLS relationships for an entity.
+
+        Uses CallProcessor for enhanced resolution when available.
 
         Args:
             caller_name: Caller qualified name.
             calls_list: List of callee names.
+            class_context: Enclosing class for method context.
         """
         for call in calls_list:
+            resolved_qn = None
+
+            # Try enhanced resolution with CallProcessor
+            if self.call_processor and self._current_module_qn:
+                try:
+                    result = self.call_processor.resolve_call(
+                        call_name=call,
+                        module_qn=self._current_module_qn,
+                        class_context=class_context,
+                        language=getattr(self, '_current_language', 'python'),
+                    )
+                    if result:
+                        entity_type, resolved_qn = result
+                        logger.debug(f"CallProcessor resolved: {call} -> {resolved_qn}")
+                except Exception as e:
+                    logger.debug(f"CallProcessor resolution failed for {call}: {e}")
+
+            # Use resolved name or fall back to original
+            callee_name = resolved_qn or call
+
             try:
-                # First try exact match by qualified name
+                # Try exact match by qualified name
                 await self.client.execute(
                     RelationshipQueries.CREATE_FUNCTION_CALLS,
-                    {"caller_name": caller_name, "callee_name": call},
+                    {"caller_name": caller_name, "callee_name": callee_name},
                 )
             except Exception as e:
                 logger.debug(
-                    f"Exact CALLS match failed from {caller_name} to {call}: {e}"
+                    f"Exact CALLS match failed from {caller_name} to {callee_name}: {e}"
                 )
 
             # For method calls like "obj.method", also link by method name
@@ -258,6 +313,7 @@ class GraphBuilder:
             entity.qualified_name,
         )
 
+        # Functions don't have class context
         await self._create_calls_relationships(entity.qualified_name, entity.calls)
 
     async def _create_method(
@@ -296,4 +352,7 @@ class GraphBuilder:
                     f"Failed to create DEFINES_METHOD relationship for {class_name} -> {entity.qualified_name}: {e}"
                 )
 
-        await self._create_calls_relationships(entity.qualified_name, entity.calls)
+        # Pass class context for better super() and inherited method resolution
+        await self._create_calls_relationships(
+            entity.qualified_name, entity.calls, class_context=class_name
+        )

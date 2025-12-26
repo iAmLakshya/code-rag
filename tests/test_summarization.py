@@ -25,27 +25,9 @@ class TestCodeSummarizer:
         return provider
 
     @pytest.fixture
-    def mock_openai_client(self):
-        """Create a mock OpenAI client."""
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(content="Mock summary from OpenAI"))]
-        client = AsyncMock()
-        client.chat.completions.create = AsyncMock(return_value=mock_response)
-        return client
-
-    @pytest.fixture
     def summarizer_with_provider(self, mock_llm_provider):
         """Create summarizer with custom LLM provider."""
         return CodeSummarizer(llm_provider=mock_llm_provider)
-
-    @pytest.fixture
-    def summarizer_with_openai(self, mock_openai_client):
-        """Create summarizer with mocked OpenAI client."""
-        with patch('code_rag.summarization.summarizer.AsyncOpenAI') as mock_class:
-            mock_class.return_value = mock_openai_client
-            summarizer = CodeSummarizer(api_key="test-key")
-            summarizer._client = mock_openai_client
-            return summarizer
 
     @pytest.fixture
     def sample_file_info(self) -> FileInfo:
@@ -191,39 +173,6 @@ class TestCodeSummarizer:
         assert summary == ""
 
     # -------------------------------------------------------------------------
-    # OpenAI Client Tests
-    # -------------------------------------------------------------------------
-
-    @pytest.mark.asyncio
-    async def test_summarize_with_openai_client(self, summarizer_with_openai, sample_parsed_file, mock_openai_client):
-        """Test summarization using OpenAI client."""
-        summary = await summarizer_with_openai.summarize_file(sample_parsed_file)
-
-        assert summary == "Mock summary from OpenAI"
-        mock_openai_client.chat.completions.create.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_openai_client_receives_correct_params(self, summarizer_with_openai, sample_function_entity, mock_openai_client):
-        """Test that OpenAI client receives correct parameters."""
-        await summarizer_with_openai.summarize_entity(
-            sample_function_entity,
-            file_path="src/utils.py",
-            language="python",
-        )
-
-        call_kwargs = mock_openai_client.chat.completions.create.call_args[1]
-        assert "model" in call_kwargs
-        assert "messages" in call_kwargs
-        assert "temperature" in call_kwargs
-        assert "max_tokens" in call_kwargs
-
-        # Should have system and user messages
-        messages = call_kwargs["messages"]
-        assert len(messages) == 2
-        assert messages[0]["role"] == "system"
-        assert messages[1]["role"] == "user"
-
-    # -------------------------------------------------------------------------
     # Full File Summarization Tests
     # -------------------------------------------------------------------------
 
@@ -299,20 +248,6 @@ class TestCodeSummarizer:
         # Due to tenacity retry decorator, will exhaust retries and raise
         with pytest.raises((SummarizationError, RetryError)):
             await summarizer_with_provider.summarize_file(sample_parsed_file)
-
-    @pytest.mark.asyncio
-    async def test_summarize_openai_error_handling(self, summarizer_with_openai, sample_function_entity, mock_openai_client):
-        """Test error handling with OpenAI client."""
-        from tenacity import RetryError
-        mock_openai_client.chat.completions.create.side_effect = Exception("OpenAI Error")
-
-        # Due to tenacity retry decorator, will exhaust retries and raise
-        with pytest.raises((SummarizationError, RetryError)):
-            await summarizer_with_openai.summarize_entity(
-                sample_function_entity,
-                file_path="src/utils.py",
-                language="python",
-            )
 
     # -------------------------------------------------------------------------
     # Concurrency Tests

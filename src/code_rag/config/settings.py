@@ -81,9 +81,15 @@ class DatabaseSettings(BaseSettings):
 
 
 class AISettings(BaseSettings):
-    """OpenAI API configuration.
+    """AI provider configuration.
 
-    Handles OpenAI API credentials and model selection for embeddings and LLM.
+    Supports multiple LLM and embedding providers:
+    - OpenAI (default)
+    - Ollama (local models)
+    - Anthropic (Claude)
+    - Google (Gemini)
+
+    Set LLM_PROVIDER and EMBEDDING_PROVIDER to switch providers.
     """
 
     model_config = SettingsConfigDict(
@@ -93,13 +99,44 @@ class AISettings(BaseSettings):
         extra="ignore",
     )
 
+    # Provider Selection
+    llm_provider: str = Field(
+        default="openai",
+        description="LLM provider: openai, ollama, anthropic, google",
+    )
+    embedding_provider: str = Field(
+        default="openai",
+        description="Embedding provider: openai, ollama, google",
+    )
+
+    # OpenAI Configuration
     openai_api_key: SecretStr = Field(
         default=SecretStr(""),
         description="OpenAI API key (stored securely)",
     )
+
+    # Ollama Configuration
+    ollama_base_url: str = Field(
+        default="http://localhost:11434/v1",
+        description="Ollama API base URL",
+    )
+
+    # Anthropic Configuration
+    anthropic_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        description="Anthropic API key (stored securely)",
+    )
+
+    # Google Configuration
+    google_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        description="Google API key (stored securely)",
+    )
+
+    # Model Configuration
     embedding_model: str = Field(
         default="text-embedding-3-small",
-        description="OpenAI embedding model name",
+        description="Embedding model name",
     )
     embedding_dimensions: int = Field(
         default=1536,
@@ -108,7 +145,7 @@ class AISettings(BaseSettings):
     )
     llm_model: str = Field(
         default="gpt-4o",
-        description="OpenAI LLM model for summaries and responses",
+        description="LLM model for summaries and responses",
     )
     llm_temperature: float = Field(
         default=0.1,
@@ -295,47 +332,38 @@ class Settings(BaseSettings):
     # Database properties
     @property
     def memgraph_host(self) -> str:
-        """Backward compatible access to memgraph_host."""
         return self.database.memgraph_host
 
     @property
     def memgraph_port(self) -> int:
-        """Backward compatible access to memgraph_port."""
         return self.database.memgraph_port
 
     @property
     def memgraph_user(self) -> str:
-        """Backward compatible access to memgraph_user."""
         return self.database.memgraph_user
 
     @property
     def memgraph_password(self) -> str:
-        """Backward compatible access to memgraph_password."""
         return self.database.memgraph_password
 
     @property
     def memgraph_uri(self) -> str:
-        """Backward compatible access to memgraph_uri."""
         return self.database.memgraph_uri
 
     @property
     def qdrant_host(self) -> str:
-        """Backward compatible access to qdrant_host."""
         return self.database.qdrant_host
 
     @property
     def qdrant_port(self) -> int:
-        """Backward compatible access to qdrant_port."""
         return self.database.qdrant_port
 
     @property
     def qdrant_grpc_port(self) -> int:
-        """Backward compatible access to qdrant_grpc_port."""
         return self.database.qdrant_grpc_port
 
     @property
     def qdrant_url(self) -> str:
-        """Backward compatible access to qdrant_url."""
         return self.database.qdrant_url
 
     # AI properties
@@ -349,54 +377,44 @@ class Settings(BaseSettings):
 
     @property
     def embedding_model(self) -> str:
-        """Backward compatible access to embedding_model."""
         return self.ai.embedding_model
 
     @property
     def embedding_dimensions(self) -> int:
-        """Backward compatible access to embedding_dimensions."""
         return self.ai.embedding_dimensions
 
     @property
     def llm_model(self) -> str:
-        """Backward compatible access to llm_model."""
         return self.ai.llm_model
 
     @property
     def llm_temperature(self) -> float:
-        """Backward compatible access to llm_temperature."""
         return self.ai.llm_temperature
 
     # Indexing properties
     @property
     def batch_size(self) -> int:
-        """Backward compatible access to batch_size."""
         return self.indexing.batch_size
 
     @property
     def max_concurrent_requests(self) -> int:
-        """Backward compatible access to max_concurrent_requests."""
         return self.indexing.max_concurrent_requests
 
     @property
     def chunk_max_tokens(self) -> int:
-        """Backward compatible access to chunk_max_tokens."""
         return self.indexing.chunk_max_tokens
 
     @property
     def chunk_overlap_tokens(self) -> int:
-        """Backward compatible access to chunk_overlap_tokens."""
         return self.indexing.chunk_overlap_tokens
 
     # File properties
     @property
     def supported_extensions(self) -> list[str]:
-        """Backward compatible access to supported_extensions."""
         return self.files.supported_extensions
 
     @property
     def ignore_patterns(self) -> list[str]:
-        """Backward compatible access to ignore_patterns."""
         return self.files.ignore_patterns
 
 

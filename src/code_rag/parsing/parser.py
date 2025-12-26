@@ -1,7 +1,10 @@
 """Tree-sitter based code parser."""
 
+from __future__ import annotations
+
 import hashlib
 from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 from tree_sitter_language_pack import get_parser
 
@@ -10,13 +13,16 @@ from code_rag.parsing.extractors.base import BaseExtractor
 from code_rag.parsing.extractors.javascript import JavaScriptExtractor
 from code_rag.parsing.extractors.python import PythonExtractor
 from code_rag.parsing.extractors.typescript import TypeScriptExtractor
-from code_rag.parsing.models import FileInfo, ParsedFile
+from code_rag.parsing.models import CodeEntity, FileInfo, ImportInfo, ParsedFile
+
+if TYPE_CHECKING:
+    from tree_sitter import Parser
 
 
 class CodeParser:
     """Parser for extracting code entities using Tree-sitter."""
 
-    LANGUAGE_MAP = {
+    LANGUAGE_MAP: ClassVar[dict[Language, str]] = {
         Language.PYTHON: "python",
         Language.JAVASCRIPT: "javascript",
         Language.JSX: "javascript",
@@ -24,8 +30,8 @@ class CodeParser:
         Language.TSX: "tsx",
     }
 
-    def __init__(self):
-        self._parsers: dict[str, any] = {}
+    def __init__(self) -> None:
+        self._parsers: dict[str, Parser] = {}
         self._extractors: dict[Language, BaseExtractor] = {
             Language.PYTHON: PythonExtractor(),
             Language.JAVASCRIPT: JavaScriptExtractor(),
@@ -34,7 +40,7 @@ class CodeParser:
             Language.TSX: TypeScriptExtractor(),
         }
 
-    def _get_parser(self, language: Language):
+    def _get_parser(self, language: Language) -> Parser:
         lang_id = self.LANGUAGE_MAP.get(language)
         if lang_id not in self._parsers:
             self._parsers[lang_id] = get_parser(lang_id)
@@ -43,7 +49,9 @@ class CodeParser:
     def _get_extractor(self, language: Language) -> BaseExtractor:
         return self._extractors[language]
 
-    def _parse_and_extract(self, content: str, language: Language):
+    def _parse_and_extract(
+        self, content: str, language: Language
+    ) -> tuple[list[ImportInfo], list[CodeEntity]]:
         parser = self._get_parser(language)
         tree = parser.parse(content.encode("utf-8"))
         extractor = self._get_extractor(language)

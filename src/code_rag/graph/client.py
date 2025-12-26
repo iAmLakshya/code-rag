@@ -35,7 +35,6 @@ class MemgraphClient:
         self._driver: AsyncDriver | None = None
 
     async def connect(self) -> None:
-        """Establish connection to Memgraph."""
         if self._driver is None:
             try:
                 self._driver = AsyncGraphDatabase.driver(
@@ -51,7 +50,6 @@ class MemgraphClient:
                 ) from e
 
     async def close(self) -> None:
-        """Close the database connection."""
         if self._driver:
             try:
                 await self._driver.close()
@@ -62,7 +60,6 @@ class MemgraphClient:
 
     @asynccontextmanager
     async def session(self):
-        """Get a database session context manager."""
         if self._driver is None:
             await self.connect()
         session: AsyncSession = self._driver.session()
@@ -72,7 +69,6 @@ class MemgraphClient:
             await session.close()
 
     def _normalize_parameters(self, parameters: dict[str, Any] | None) -> dict[str, Any]:
-        """Normalize parameters to avoid None values."""
         return parameters or {}
 
     async def execute(
@@ -154,20 +150,89 @@ class MemgraphClient:
             raise GraphError("Failed to clear database", cause=e) from e
 
     async def get_node_count(self) -> int:
-        """Get total node count."""
         result = await self.execute("MATCH (n) RETURN count(n) as count")
         return result[0]["count"] if result else 0
 
     async def get_relationship_count(self) -> int:
-        """Get total relationship count."""
         result = await self.execute("MATCH ()-[r]->() RETURN count(r) as count")
         return result[0]["count"] if result else 0
 
+    async def execute_batch(
+        self,
+        query: str,
+        batch: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Execute a batch query using UNWIND for high performance.
+
+        Uses UNWIND pattern for efficient bulk operations.
+        The query should reference 'row' for batch parameters.
+
+        Args:
+            query: Cypher query using 'row' for parameters (e.g., row.name).
+            batch: List of parameter dictionaries for each row.
+
+        Returns:
+            List of result records as dictionaries.
+
+        Raises:
+            GraphError: If query execution fails.
+        """
+        if not batch:
+            return []
+
+        batch_query = f"UNWIND $batch AS row\n{query}"
+        try:
+            async with self.session() as session:
+                result = await session.run(batch_query, {"batch": batch})
+                records = await result.data()
+                return records
+        except Exception as e:
+            # Ignore "already exists" constraint errors (common with MERGE)
+            if "already exists" not in str(e).lower():
+                logger.error(f"Batch query execution failed: {e}")
+                logger.debug(f"Query: {batch_query}")
+                logger.debug(f"Batch size: {len(batch)}")
+            raise GraphError(
+                f"Failed to execute batch query: {query[:100]}...", cause=e
+            ) from e
+
+    async def execute_batch_write(
+        self,
+        query: str,
+        batch: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Execute a batch write query in a transaction.
+
+        Args:
+            query: Cypher query using 'row' for parameters.
+            batch: List of parameter dictionaries.
+
+        Returns:
+            List of result records.
+
+        Raises:
+            GraphError: If query execution fails.
+        """
+        if not batch:
+            return []
+
+        batch_query = f"UNWIND $batch AS row\n{query}"
+        try:
+            async with self.session() as session:
+                result = await session.execute_write(
+                    lambda tx: tx.run(batch_query, {"batch": batch}).data()
+                )
+                return result
+        except Exception as e:
+            if "already exists" not in str(e).lower():
+                logger.error(f"Batch write query execution failed: {e}")
+            raise GraphError(
+                f"Failed to execute batch write query: {query[:100]}...", cause=e
+            ) from e
+
     async def __aenter__(self):
-        """Async context manager entry."""
         await self.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
         await self.close()

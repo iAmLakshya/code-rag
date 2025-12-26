@@ -15,6 +15,14 @@ from code_rag.core.errors import QueryError
 
 logger = logging.getLogger(__name__)
 
+# Pre-compiled regex patterns for performance
+_RE_CODE_BLOCK_START = re.compile(r'^```(?:json)?\s*\n?', re.MULTILINE)
+_RE_CODE_BLOCK_END = re.compile(r'\n?```\s*$', re.MULTILINE)
+_RE_JSON_OBJECT = re.compile(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', re.DOTALL)
+_RE_CAMEL_CASE = re.compile(r"\b([A-Z][a-z]+(?:[A-Z][a-z]+)+)\b")
+_RE_SNAKE_CASE = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\b")
+_RE_BACKTICK = re.compile(r"`([^`]+)`")
+
 
 class QueryIntent(Enum):
     """High-level query intent categories."""
@@ -194,7 +202,6 @@ class QueryPlanner:
             if content:
                 content = content.strip()
 
-            # Extract JSON from response
             analysis = self._extract_json(content)
             plan = self._build_query_plan(question, analysis)
 
@@ -202,12 +209,9 @@ class QueryPlanner:
             return plan
 
         except (json.JSONDecodeError, ValueError, KeyError, TypeError, AttributeError) as e:
-            # These are expected parsing/validation errors - log at debug level
             logger.debug(f"Query planning parse error ({type(e).__name__}), using heuristic fallback")
             return self._fallback_plan(question)
         except Exception as e:
-            # Truly unexpected errors - log at debug to avoid polluting output
-            # but include type info for debugging
             logger.debug(
                 f"Unexpected error during query planning ({type(e).__name__}: {e}), "
                 "using heuristic fallback"
@@ -230,7 +234,6 @@ class QueryPlanner:
         if not content:
             raise json.JSONDecodeError("Empty content", "", 0)
 
-        # Strip whitespace
         content = content.strip()
 
         def validate_dict(result: Any) -> dict[str, Any]:
@@ -242,26 +245,20 @@ class QueryPlanner:
                 )
             return result
 
-        # Try direct parse first
         try:
             return validate_dict(json.loads(content))
         except json.JSONDecodeError:
             pass
 
-        # Remove markdown code blocks (various formats)
-        # Handle ```json\n...\n```
-        content = re.sub(r'^```(?:json)?\s*\n?', '', content, flags=re.MULTILINE)
-        content = re.sub(r'\n?```\s*$', '', content, flags=re.MULTILINE)
+        content = _RE_CODE_BLOCK_START.sub('', content)
+        content = _RE_CODE_BLOCK_END.sub('', content)
         content = content.strip()
 
-        # Try again after cleanup
         try:
             return validate_dict(json.loads(content))
         except json.JSONDecodeError:
             pass
 
-        # Try to find JSON object in the text (greedy match for outermost braces)
-        # Find the first { and the last }
         first_brace = content.find('{')
         last_brace = content.rfind('}')
 
@@ -272,15 +269,13 @@ class QueryPlanner:
             except json.JSONDecodeError:
                 pass
 
-        # Try with regex for nested structures
-        match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', content, re.DOTALL)
+        match = _RE_JSON_OBJECT.search(content)
         if match:
             try:
                 return validate_dict(json.loads(match.group()))
             except json.JSONDecodeError:
                 pass
 
-        # If all else fails, raise the error with helpful context
         preview = content[:100] + "..." if len(content) > 100 else content
         raise json.JSONDecodeError(f"Could not extract JSON from: {preview}", content, 0)
 
@@ -294,14 +289,12 @@ class QueryPlanner:
         Returns:
             QueryPlan object.
         """
-        # Parse primary intent
         intent_str = analysis.get("primary_intent", "search_functionality")
         try:
             primary_intent = QueryIntent(intent_str)
         except ValueError:
             primary_intent = QueryIntent.SEARCH_FUNCTIONALITY
 
-        # Parse entities
         entities = []
         for e in analysis.get("entities", []):
             entities.append(
@@ -313,7 +306,6 @@ class QueryPlanner:
                 )
             )
 
-        # Parse relationships
         relationships = []
         for r in analysis.get("relationships", []):
             relationships.append(
@@ -324,15 +316,12 @@ class QueryPlanner:
                 )
             )
 
-        # Parse multi-hop requirements
         multi_hop = analysis.get("multi_hop", {})
         requires_multi_hop = multi_hop.get("required", False)
         max_hops = multi_hop.get("max_hops", 1)
 
-        # Parse context requirements
         context_requirements = analysis.get("context_requirements", [])
 
-        # Parse sub-queries
         sub_queries = []
         for i, sq in enumerate(analysis.get("sub_queries", [])):
             intent_str = sq.get("intent", "search_functionality")
@@ -341,7 +330,6 @@ class QueryPlanner:
             except ValueError:
                 sq_intent = QueryIntent.SEARCH_FUNCTIONALITY
 
-            # Extract entities for this sub-query from the main entities
             sq_entities = [e for e in entities if e.name.lower() in sq.get("query", "").lower()]
 
             sub_queries.append(
@@ -356,7 +344,6 @@ class QueryPlanner:
                 )
             )
 
-        # If no sub-queries were generated, create a default one
         if not sub_queries:
             sub_queries.append(
                 SubQuery(
@@ -428,7 +415,6 @@ class QueryPlanner:
 
         question_lower = question.lower()
 
-        # Detect intent from keywords
         if any(kw in question_lower for kw in ["what calls", "who calls", "callers of"]):
             intent = QueryIntent.FIND_CALLERS
             search_type = "graph"
@@ -454,21 +440,14 @@ class QueryPlanner:
             intent = QueryIntent.SEARCH_FUNCTIONALITY
             search_type = "hybrid"
 
-        # Extract entities using regex patterns
-        import re
-
         entities = []
-        # CamelCase
-        for match in re.findall(r"\b([A-Z][a-z]+(?:[A-Z][a-z]+)+)\b", question):
+        for match in _RE_CAMEL_CASE.findall(question):
             entities.append(ExtractedEntity(name=match, entity_type="class", is_primary=True))
-        # snake_case
-        for match in re.findall(r"\b([a-z]+(?:_[a-z]+)+)\b", question):
+        for match in _RE_SNAKE_CASE.findall(question):
             entities.append(ExtractedEntity(name=match, entity_type="function", is_primary=True))
-        # Backticks
-        for match in re.findall(r"`([^`]+)`", question):
+        for match in _RE_BACKTICK.findall(question):
             entities.append(ExtractedEntity(name=match, is_primary=True))
 
-        # Determine multi-hop requirements
         requires_multi_hop = any(
             kw in question_lower
             for kw in ["eventually", "indirectly", "chain", "path", "through", "via"]

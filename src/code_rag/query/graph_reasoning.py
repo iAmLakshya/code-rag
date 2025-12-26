@@ -470,19 +470,16 @@ class GraphReasoningEngine:
         )
 
         try:
-            # First, resolve primary entities
             for entity in plan.entities:
                 if entity.is_primary or not context.primary_entities:
                     nodes = await self._find_entity(entity.name, entity.entity_type)
                     context.primary_entities.extend(nodes)
 
             if not context.primary_entities:
-                # Try fuzzy search if exact match fails
                 for entity in plan.entities:
                     nodes = await self._find_entity_fuzzy(entity.name)
                     context.primary_entities.extend(nodes)
 
-            # Based on intent, gather relevant context
             if plan.primary_intent in (QueryIntent.FIND_CALLERS, QueryIntent.FIND_USAGES):
                 await self._gather_caller_context(context, plan)
 
@@ -502,7 +499,6 @@ class GraphReasoningEngine:
                 await self._gather_dependency_context(context, plan)
 
             else:
-                # Default: gather comprehensive context
                 await self._gather_comprehensive_context(context, plan)
 
             logger.debug(
@@ -837,7 +833,6 @@ class GraphReasoningEngine:
         """Gather caller-focused context."""
         max_hops = plan.max_hops if plan.requires_multi_hop else 1
 
-        # If we have primary entities, search from them
         if context.primary_entities:
             for entity in context.primary_entities:
                 callers = await self.find_transitive_callers(
@@ -846,7 +841,6 @@ class GraphReasoningEngine:
                 )
                 context.callers.extend(callers)
         else:
-            # Fall back to searching by entity names from the plan
             for entity in plan.entities:
                 callers = await self.find_transitive_callers(
                     entity.name,
@@ -858,7 +852,6 @@ class GraphReasoningEngine:
         """Gather callee-focused context."""
         max_hops = plan.max_hops if plan.requires_multi_hop else 1
 
-        # If we have primary entities, search from them
         if context.primary_entities:
             for entity in context.primary_entities:
                 callees = await self.find_transitive_callees(
@@ -867,7 +860,6 @@ class GraphReasoningEngine:
                 )
                 context.callees.extend(callees)
         else:
-            # Fall back to searching by entity names from the plan
             for entity in plan.entities:
                 callees = await self.find_transitive_callees(
                     entity.name,
@@ -886,10 +878,9 @@ class GraphReasoningEngine:
     async def _gather_hierarchy_context(self, context: GraphContext, plan: QueryPlan) -> None:
         """Gather inheritance hierarchy context.
 
-        For classes: finds parent classes and child classes (inheritance hierarchy).
-        For methods/functions: finds callers and callees (usage context).
+        For classes: finds parent classes and child classes.
+        For methods/functions: finds callers and callees.
         """
-        # Process resolved primary entities
         for entity in context.primary_entities:
             if entity.node_type == "Class":
                 _, ancestors, descendants = await self.find_full_hierarchy(
@@ -898,21 +889,17 @@ class GraphReasoningEngine:
                 context.parent_classes.extend(ancestors)
                 context.child_classes.extend(descendants)
             else:
-                # For methods and functions, gather caller/callee context
                 callers = await self.find_transitive_callers(
                     entity.qualified_name or entity.name,
                     max_hops=plan.max_hops if plan.requires_multi_hop else 1,
                 )
                 context.callers.extend(callers)
 
-        # Also search for entities from plan that weren't in primary_entities
-        # This handles compound queries like "hierarchy of X and callers of Y"
         resolved_names = {e.name.lower() for e in context.primary_entities}
         resolved_names.update(e.qualified_name.lower() for e in context.primary_entities if e.qualified_name)
 
         for plan_entity in plan.entities:
             if plan_entity.name.lower() not in resolved_names:
-                # Try to find and get callers for this entity
                 callers = await self.find_transitive_callers(
                     plan_entity.name,
                     max_hops=plan.max_hops if plan.requires_multi_hop else 1,
@@ -931,7 +918,6 @@ class GraphReasoningEngine:
                 context.callees.extend(impl_context.get("callees", []))
                 context.file_context.extend(impl_context.get("siblings", []))
 
-            # If it's a class, get methods too
             if entity.node_type == "Class":
                 _, methods = await self.find_class_with_methods(
                     entity.qualified_name or entity.name
@@ -949,10 +935,9 @@ class GraphReasoningEngine:
 
     async def _gather_comprehensive_context(self, context: GraphContext, plan: QueryPlan) -> None:
         """Gather comprehensive context for general queries."""
-        # Run multiple context gathering operations in parallel
         tasks = []
 
-        for entity in context.primary_entities[:3]:  # Limit to top 3 entities
+        for entity in context.primary_entities[:3]:
             entity_name = entity.qualified_name or entity.name
 
             tasks.append(self.find_transitive_callers(entity_name, max_hops=2, limit=10))
@@ -966,17 +951,14 @@ class GraphReasoningEngine:
 
             idx = 0
             for entity in context.primary_entities[:3]:
-                # Callers result
                 if idx < len(results) and isinstance(results[idx], list):
                     context.callers.extend(results[idx])
                 idx += 1
 
-                # Callees result
                 if idx < len(results) and isinstance(results[idx], list):
                     context.callees.extend(results[idx])
                 idx += 1
 
-                # Class methods result
                 if entity.node_type == "Class":
                     if idx < len(results) and isinstance(results[idx], tuple):
                         _, methods = results[idx]

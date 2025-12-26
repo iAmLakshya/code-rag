@@ -214,28 +214,23 @@ class ContextBuilder:
         except Exception as e:
             logger.debug(f"Could not fetch code snippet: {e}")
 
-        # Build implementation summary from available info
         if entity.summary:
             context.implementation_summary = entity.summary
         elif entity.docstring:
             context.implementation_summary = entity.docstring[:500]
 
-        # Gather caller summaries - include all callers found for this query context
-        # Since callers are found via transitive search, they are all relevant
         context.caller_summaries = [
             f"{c.name} ({c.node_type}) in {c.file_path}:{c.start_line or '?'}"
             for c in graph_context.callers[:5]
             if c.name and c.file_path
         ]
 
-        # Gather callee summaries
         context.callee_summaries = [
             f"{c.name} ({c.node_type}) - {c.summary or 'No summary'}"
             for c in graph_context.callees[:5]
-            if c.file_path  # Filter out invalid entries
+            if c.file_path
         ]
 
-        # Gather related entities
         related = set()
         if entity.node_type == "Class":
             for method in graph_context.methods:
@@ -311,14 +306,12 @@ class ContextBuilder:
         """
         explanations = []
 
-        # Ancestor chain
         if graph_context.parent_classes:
             ancestors = " → ".join(
                 p.name for p in graph_context.parent_classes[:5]
             )
             explanations.append(f"Inherits from: {ancestors}")
 
-        # Descendant list
         if graph_context.child_classes:
             children = ", ".join(
                 c.name for c in graph_context.child_classes[:5]
@@ -457,21 +450,17 @@ class ContextBuilder:
         """
         notes = []
 
-        # Note about query understanding
         if plan.reasoning:
             notes.append(f"Query analysis: {plan.reasoning}")
 
-        # Note about multi-hop reasoning
         if plan.requires_multi_hop:
             notes.append(f"Used multi-hop graph traversal (up to {plan.max_hops} hops)")
 
-        # Note about what was found
         if not graph_context.primary_entities:
             notes.append("No exact entity matches found; using semantic search results")
         elif len(graph_context.primary_entities) > 1:
             notes.append(f"Found {len(graph_context.primary_entities)} entities matching the query")
 
-        # Note about relationships
         if graph_context.call_chains:
             notes.append(f"Identified {len(graph_context.call_chains)} call paths between entities")
 
@@ -480,7 +469,6 @@ class ContextBuilder:
                 f"Entity has {len(graph_context.callers)} callers and calls {len(graph_context.callees)} other functions"
             )
 
-        # Note about context requirements
         if "implementation_details" in plan.context_requirements:
             if enriched.code_snippets:
                 notes.append(f"Retrieved {len(enriched.code_snippets)} relevant code snippets")
@@ -501,12 +489,10 @@ def format_context_for_llm(enriched: EnrichedContext) -> str:
     """
     sections = []
 
-    # Header with summary
     sections.append(f"## Query Context\n")
     sections.append(f"**Intent**: {enriched.intent.value}\n")
     sections.append(f"**Summary**: {enriched.graph_summary}\n")
 
-    # Primary entities with details
     if enriched.primary_contexts:
         sections.append("\n## Primary Entities\n")
 
@@ -538,13 +524,11 @@ def format_context_for_llm(enriched: EnrichedContext) -> str:
             if ctx.related_entities:
                 sections.append(f"**Related**: {', '.join(ctx.related_entities[:5])}\n")
 
-    # Call chains
     if enriched.call_chain_explanations:
         sections.append("\n## Call Chains\n")
         for explanation in enriched.call_chain_explanations:
             sections.append(f"- {explanation}\n")
 
-    # Callers section - show who calls the target entities
     caller_info = []
     for ctx in enriched.primary_contexts:
         if ctx.caller_summaries:
@@ -554,13 +538,11 @@ def format_context_for_llm(enriched: EnrichedContext) -> str:
         for caller in caller_info[:10]:
             sections.append(f"- {caller}\n")
 
-    # Inheritance hierarchy
     if enriched.hierarchy_explanations:
         sections.append("\n## Inheritance Hierarchy\n")
         for explanation in enriched.hierarchy_explanations:
             sections.append(f"- {explanation}\n")
 
-    # Additional code snippets from vector search
     if enriched.code_snippets:
         sections.append("\n## Related Code\n")
         for snippet in enriched.code_snippets[:3]:
@@ -569,13 +551,11 @@ def format_context_for_llm(enriched: EnrichedContext) -> str:
             lang = snippet.language or ""
             sections.append(f"```{lang}\n{snippet.content}\n```\n")
 
-    # File context
     if enriched.file_summaries:
         sections.append("\n## Relevant Files\n")
         for file_path, summary in list(enriched.file_summaries.items())[:5]:
             sections.append(f"- {summary}\n")
 
-    # Reasoning notes
     if enriched.reasoning_notes:
         sections.append("\n## Analysis Notes\n")
         for note in enriched.reasoning_notes:

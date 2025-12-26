@@ -82,7 +82,6 @@ Keep the overview concise but comprehensive."""
 
     @staticmethod
     def _build_docstring_section(docstring: str | None) -> str:
-        """Build docstring section for prompts."""
         if docstring:
             return f"Existing docstring:\n{docstring}"
         return ""
@@ -94,7 +93,6 @@ Keep the overview concise but comprehensive."""
         language: str,
         content: str,
     ) -> str:
-        """Get prompt for file summarization."""
         return cls.FILE_SUMMARY.format(
             file_path=file_path,
             language=language,
@@ -111,7 +109,6 @@ Keep the overview concise but comprehensive."""
         language: str,
         docstring: str | None = None,
     ) -> str:
-        """Get prompt for function summarization."""
         return cls.FUNCTION_SUMMARY.format(
             name=name,
             file_path=file_path,
@@ -130,7 +127,6 @@ Keep the overview concise but comprehensive."""
         language: str,
         docstring: str | None = None,
     ) -> str:
-        """Get prompt for class summarization."""
         return cls.CLASS_SUMMARY.format(
             name=name,
             file_path=file_path,

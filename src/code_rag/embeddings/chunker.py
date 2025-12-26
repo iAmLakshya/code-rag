@@ -27,7 +27,6 @@ class CodeChunk:
     project_name: str | None = None
 
     def to_payload(self) -> dict:
-        """Convert to Qdrant payload format."""
         return {
             "file_path": self.file_path,
             "entity_type": self.entity_type,
@@ -64,14 +63,6 @@ class CodeChunker:
         self.encoding = tiktoken.get_encoding(encoding_name)
 
     def count_tokens(self, text: str) -> int:
-        """Count tokens in text.
-
-        Args:
-            text: Text to count.
-
-        Returns:
-            Token count.
-        """
         return len(self.encoding.encode(text))
 
     def chunk_file(

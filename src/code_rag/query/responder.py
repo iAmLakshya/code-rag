@@ -1,12 +1,18 @@
-"""LLM response generation for queries."""
+"""LLM response generation for queries.
+
+Supports multiple LLM providers:
+- OpenAI (default)
+- Ollama (local)
+- Anthropic (Claude)
+- Google (Gemini)
+"""
 
 import logging
 
-from openai import AsyncOpenAI, OpenAIError
-from tenacity import retry, stop_after_attempt, wait_exponential
-
 from code_rag.config import get_settings
 from code_rag.core.errors import QueryError
+from code_rag.providers import get_llm_provider
+from code_rag.providers.base import BaseLLMProvider
 from code_rag.query.reranker import SearchResult
 
 logger = logging.getLogger(__name__)
@@ -52,28 +58,39 @@ MAX_CONTENT_LENGTH = 2000
 
 
 class ResponseGenerator:
-    """Generates natural language responses using LLM."""
+    """Generates natural language responses using configurable LLM providers."""
 
     def __init__(
         self,
-        api_key: str | None = None,
+        provider: str | None = None,
         model: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
     ):
         """Initialize response generator.
 
         Args:
-            api_key: OpenAI API key. Defaults to settings.
+            provider: Provider name (openai, ollama, anthropic, google).
             model: LLM model name. Defaults to settings.
+            api_key: API key. Defaults to settings.
+            base_url: Custom base URL (for Ollama).
         """
         settings = get_settings()
-        self.model = model or settings.llm_model
         self.temperature = settings.llm_temperature
-        self._client = AsyncOpenAI(api_key=api_key or settings.openai_api_key)
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=30),
-    )
+        self._llm_provider: BaseLLMProvider = get_llm_provider(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=self.temperature,
+        )
+
+        logger.info(
+            f"Initialized ResponseGenerator with "
+            f"{self._llm_provider.config.provider}/{self._llm_provider.config.model}"
+        )
+
     async def generate_response(
         self,
         question: str,
@@ -97,7 +114,7 @@ class ResponseGenerator:
             logger.debug(f"Generating response for question: {question}")
             context = self._build_context(results[:max_context_results])
 
-            answer = await self._call_llm(
+            answer = await self._llm_provider.complete(
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {
@@ -114,12 +131,9 @@ class ResponseGenerator:
             logger.debug(f"Generated response length: {len(answer)}")
             return answer
 
-        except OpenAIError as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise QueryError("Failed to generate response", cause=e)
         except Exception as e:
-            logger.error(f"Unexpected error generating response: {e}")
-            raise QueryError("Unexpected error during response generation", cause=e)
+            logger.error(f"Error generating response: {e}")
+            raise QueryError("Failed to generate response", cause=e)
 
     async def generate_explanation(
         self,
@@ -155,7 +169,7 @@ class ResponseGenerator:
                     code=code,
                 )
 
-            answer = await self._call_llm(
+            answer = await self._llm_provider.complete(
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
@@ -166,38 +180,9 @@ class ResponseGenerator:
             logger.debug(f"Generated explanation length: {len(answer)}")
             return answer
 
-        except OpenAIError as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise QueryError("Failed to generate explanation", cause=e)
         except Exception as e:
-            logger.error(f"Unexpected error generating explanation: {e}")
-            raise QueryError("Unexpected error during explanation generation", cause=e)
-
-    async def _call_llm(
-        self,
-        messages: list[dict[str, str]],
-        max_tokens: int,
-    ) -> str:
-        """Call LLM with error handling.
-
-        Args:
-            messages: Chat messages.
-            max_tokens: Maximum tokens to generate.
-
-        Returns:
-            Generated text.
-
-        Raises:
-            OpenAIError: If API call fails.
-        """
-        response = await self._client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=max_tokens,
-        )
-
-        return response.choices[0].message.content.strip()
+            logger.error(f"Error generating explanation: {e}")
+            raise QueryError("Failed to generate explanation", cause=e)
 
     def _build_context(self, results: list[SearchResult]) -> str:
         """Build context string from search results.

@@ -174,7 +174,6 @@ class QueryEngine:
         try:
             logger.info(f"Executing query: {question}")
 
-            # Step 1: Plan the query
             import time
             start = time.time()
 
@@ -186,7 +185,6 @@ class QueryEngine:
             stats["planning_time_ms"] = int((time.time() - start) * 1000)
             logger.debug(f"Query plan: intent={plan.primary_intent}, entities={len(plan.entities)}")
 
-            # Step 2: Execute graph reasoning and vector search in parallel
             start = time.time()
 
             graph_task = self._graph_engine.execute_query_plan(plan)
@@ -200,7 +198,6 @@ class QueryEngine:
 
             stats["graph_time_ms"] = int((time.time() - start) * 1000)
 
-            # Handle exceptions
             if isinstance(graph_context, Exception):
                 logger.warning(f"Graph search failed: {graph_context}")
                 graph_context = GraphContext(
@@ -222,12 +219,10 @@ class QueryEngine:
                 logger.warning(f"Vector search failed: {vector_results}")
                 vector_results = []
 
-            # Step 3: Get centrality scores for ranking
             start = time.time()
             centrality_scores = await self._get_centrality_scores(graph_context, vector_results)
             stats["vector_time_ms"] = int((time.time() - start) * 1000)
 
-            # Step 4: Rank and merge results
             start = time.time()
             ranked_results = self._ranker.rank_results(
                 plan,
@@ -237,7 +232,6 @@ class QueryEngine:
             )
             stats["ranking_time_ms"] = int((time.time() - start) * 1000)
 
-            # Step 5: Build enriched context
             start = time.time()
             enriched_context = await self._context_builder.build_enriched_context(
                 plan,
@@ -246,7 +240,6 @@ class QueryEngine:
             )
             stats["context_time_ms"] = int((time.time() - start) * 1000)
 
-            # Step 6: Generate response using enriched context
             start = time.time()
             answer = await self._generate_enhanced_response(
                 question,
@@ -468,7 +461,6 @@ class QueryEngine:
         Returns:
             Dictionary mapping entity names to centrality scores.
         """
-        # Collect unique entity names
         entities = set()
 
         for entity in graph_context.primary_entities[:5]:
@@ -478,10 +470,8 @@ class QueryEngine:
             if vr.get("entity_name"):
                 entities.add(vr.get("graph_node_id") or vr.get("entity_name"))
 
-        # Limit lookups
         entities = list(entities)[:MAX_CENTRALITY_LOOKUPS]
 
-        # Get centrality scores in parallel
         scores = {}
         if entities:
             tasks = [
@@ -514,14 +504,11 @@ class QueryEngine:
         Returns:
             Generated response.
         """
-        # Build comprehensive context for LLM
         context_text = format_context_for_llm(context)
 
-        # Create enhanced prompt based on query intent
         system_prompt = self._get_enhanced_system_prompt(plan.primary_intent)
         user_prompt = self._build_enhanced_user_prompt(question, plan, context_text)
 
-        # Generate response
         from openai import AsyncOpenAI
         settings = get_settings()
         client = AsyncOpenAI(api_key=settings.openai_api_key)

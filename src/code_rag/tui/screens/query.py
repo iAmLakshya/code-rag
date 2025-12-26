@@ -145,7 +145,7 @@ class QueryScreen(BaseScreen):
                     "content": s.content,
                     "start_line": s.start_line,
                     "end_line": s.end_line,
-                    "score": s.score,
+                    "score": s.final_score,
                 }
                 for s in result.sources
             ],

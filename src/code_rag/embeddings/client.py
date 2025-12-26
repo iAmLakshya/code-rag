@@ -41,7 +41,6 @@ class QdrantManager:
         self._client: AsyncQdrantClient | None = None
 
     async def connect(self) -> None:
-        """Establish connection to Qdrant."""
         if self._client is None:
             try:
                 self._client = AsyncQdrantClient(
@@ -57,7 +56,6 @@ class QdrantManager:
                 raise VectorStoreError("Failed to connect to Qdrant", cause=e)
 
     async def close(self) -> None:
-        """Close the client connection."""
         if self._client:
             try:
                 await self._client.close()
@@ -68,7 +66,6 @@ class QdrantManager:
 
     @property
     def client(self) -> AsyncQdrantClient:
-        """Get the Qdrant client instance."""
         if self._client is None:
             raise VectorStoreError("Client not connected. Call connect() first.")
         return self._client
@@ -88,7 +85,6 @@ class QdrantManager:
             return False
 
     async def create_collections(self) -> None:
-        """Create the required collections if they don't exist."""
         try:
             collections = await self.client.get_collections()
             existing = {c.name for c in collections.collections}
@@ -324,7 +320,6 @@ class QdrantManager:
             )
 
     async def clear_collections(self) -> None:
-        """Clear all data from collections."""
         for collection in [CollectionName.CODE_CHUNKS, CollectionName.SUMMARIES]:
             try:
                 await self.client.delete_collection(collection.value)
@@ -334,10 +329,8 @@ class QdrantManager:
         await self.create_collections()
 
     async def __aenter__(self):
-        """Async context manager entry."""
         await self.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
         await self.close()

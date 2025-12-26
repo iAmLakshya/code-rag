@@ -1,8 +1,10 @@
 """Graph database module for knowledge graph operations."""
 
+from code_rag.graph.batch_builder import BatchGraphBuilder
 from code_rag.graph.builder import GraphBuilder
 from code_rag.graph.client import MemgraphClient
 from code_rag.graph.queries import (
+    BatchQueries,
     CypherQueries,
     EntityQueries,
     FileQueries,
@@ -16,8 +18,10 @@ from code_rag.graph.statistics import GraphStatistics
 __all__ = [
     "MemgraphClient",
     "GraphBuilder",
+    "BatchGraphBuilder",
     "GraphSchema",
     "GraphStatistics",
+    "BatchQueries",
     "CypherQueries",
     "EntityQueries",
     "FileQueries",

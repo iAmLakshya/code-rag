@@ -18,7 +18,6 @@ class PythonExtractor(BaseExtractor):
                     name = self._get_node_text(name_node, source)
                     alias = None
 
-                    # Check for alias
                     parent = name_node.parent
                     if parent and parent.type == "aliased_import":
                         alias_node = self._find_child_by_type(parent, "identifier")
