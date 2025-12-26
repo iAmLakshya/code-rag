@@ -185,6 +185,14 @@ class RelationshipQueries:
     MERGE (caller)-[:CALLS]->(callee)
     """
 
+    # For method calls like obj.method(), match by method name
+    # This handles polymorphic calls where we don't know the exact class
+    CREATE_METHOD_CALLS_BY_NAME = """
+    MATCH (caller) WHERE caller.qualified_name = $caller_name
+    MATCH (callee:Method) WHERE callee.name = $method_name
+    MERGE (caller)-[:CALLS]->(callee)
+    """
+
 
 class SearchQueries:
     """Search and analysis queries."""

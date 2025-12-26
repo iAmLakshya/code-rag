@@ -183,14 +183,31 @@ class GraphBuilder:
         """
         for call in calls_list:
             try:
+                # First try exact match by qualified name
                 await self.client.execute(
                     RelationshipQueries.CREATE_FUNCTION_CALLS,
                     {"caller_name": caller_name, "callee_name": call},
                 )
             except Exception as e:
-                logger.warning(
-                    f"Failed to create CALLS relationship from {caller_name} to {call}: {e}"
+                logger.debug(
+                    f"Exact CALLS match failed from {caller_name} to {call}: {e}"
                 )
+
+            # For method calls like "obj.method", also link by method name
+            # This handles polymorphic calls where we don't know the exact class
+            if "." in call:
+                method_name = call.split(".")[-1]
+                # Skip common non-method calls (module.func patterns)
+                if method_name and not method_name.startswith("_"):
+                    try:
+                        await self.client.execute(
+                            RelationshipQueries.CREATE_METHOD_CALLS_BY_NAME,
+                            {"caller_name": caller_name, "method_name": method_name},
+                        )
+                    except Exception as e:
+                        logger.debug(
+                            f"Method name CALLS match failed from {caller_name} to {method_name}: {e}"
+                        )
 
     async def _create_class(self, entity: CodeEntity, file_path: str) -> None:
         """Create a class node and its relationships.

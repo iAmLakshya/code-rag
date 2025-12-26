@@ -14,7 +14,7 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # TUI command (default)
-    tui_parser = subparsers.add_parser("tui", help="Launch the TUI interface")
+    subparsers.add_parser("tui", help="Launch the TUI interface")
 
     # Index command
     index_parser = subparsers.add_parser("index", help="Index a repository")
@@ -26,15 +26,19 @@ def main():
     # Query command
     query_parser = subparsers.add_parser("query", help="Query the indexed codebase")
     query_parser.add_argument("question", help="Question to ask")
-    query_parser.add_argument("--limit", "-l", type=int, default=10, help="Max results")
+    query_parser.add_argument("--limit", "-l", type=int, default=15, help="Max results")
+    query_parser.add_argument(
+        "--verbose", "-v", action="store_true",
+        help="Show detailed execution stats and reasoning"
+    )
 
     # Search command
     search_parser = subparsers.add_parser("search", help="Search the codebase")
     search_parser.add_argument("query", help="Search query")
-    search_parser.add_argument("--limit", "-l", type=int, default=10, help="Max results")
+    search_parser.add_argument("--limit", "-l", type=int, default=15, help="Max results")
 
     # Status command
-    status_parser = subparsers.add_parser("status", help="Show indexing status")
+    subparsers.add_parser("status", help="Show indexing status")
 
     args = parser.parse_args()
 
@@ -43,7 +47,7 @@ def main():
     elif args.command == "index":
         asyncio.run(run_index(args.path, args.name))
     elif args.command == "query":
-        asyncio.run(run_query(args.question, args.limit))
+        asyncio.run(run_query(args.question, args.limit, args.verbose))
     elif args.command == "search":
         asyncio.run(run_search(args.query, args.limit))
     elif args.command == "status":
@@ -114,13 +118,13 @@ async def run_index(path: str, name: str | None = None):
     console.print(f"  Time elapsed: {result['elapsed_seconds']:.1f}s")
 
 
-async def run_query(question: str, limit: int = 10):
+async def run_query(question: str, limit: int = 15, verbose: bool = False):
     """Run a query from CLI."""
     from rich.console import Console
     from rich.markdown import Markdown
     from rich.panel import Panel
 
-    from code_rag.query.engine import QueryEngine
+    from code_rag.query import QueryEngine
 
     console = Console()
 
@@ -135,6 +139,25 @@ async def run_query(question: str, limit: int = 10):
             console.print("[yellow]Make sure Docker containers are running.[/yellow]")
             sys.exit(1)
 
+    # Print verbose info if requested
+    if verbose:
+        console.print(Panel(
+            f"Intent: {result.query_plan.primary_intent.value}\n"
+            f"Entities: {', '.join(e.name for e in result.query_plan.entities)}\n"
+            f"Multi-hop: {result.query_plan.requires_multi_hop} (max {result.query_plan.max_hops} hops)\n"
+            f"Graph entities found: {result.context.total_entities_found}\n"
+            f"Execution time: {sum(result.execution_stats.values())}ms",
+            title="Query Analysis",
+            border_style="cyan"
+        ))
+        console.print()
+
+        if result.context.reasoning_notes:
+            console.print("[cyan]Reasoning:[/cyan]")
+            for note in result.context.reasoning_notes:
+                console.print(f"  - {note}")
+            console.print()
+
     # Print answer
     console.print(Panel(Markdown(result.answer), title="Answer", border_style="green"))
     console.print()
@@ -143,18 +166,20 @@ async def run_query(question: str, limit: int = 10):
     if result.sources:
         console.print("[blue]Sources:[/blue]")
         for i, source in enumerate(result.sources[:5], 1):
+            score_info = f"[score: {source.final_score:.2f}]" if verbose else ""
+            rel_info = f" [{source.relationship_path}]" if source.relationship_path and verbose else ""
             console.print(
-                f"  {i}. {source.file_path}:{source.start_line} "
-                f"[dim]({source.entity_name})[/dim]"
+                f"  {i}. {source.file_path}:{source.start_line or '?'} "
+                f"[dim]({source.entity_name}){rel_info} {score_info}[/dim]"
             )
 
 
-async def run_search(query: str, limit: int = 10):
+async def run_search(query: str, limit: int = 15):
     """Run a search from CLI."""
     from rich.console import Console
     from rich.table import Table
 
-    from code_rag.query.engine import QueryEngine
+    from code_rag.query import QueryEngine
 
     console = Console()
 
@@ -178,7 +203,7 @@ async def run_search(query: str, limit: int = 10):
 
     for result in results:
         table.add_row(
-            f"{result.score:.2f}",
+            f"{result.final_score:.2f}",
             result.entity_type,
             result.entity_name,
             result.file_path,
@@ -193,7 +218,7 @@ async def run_status():
     from rich.console import Console
     from rich.table import Table
 
-    from code_rag.query.engine import QueryEngine
+    from code_rag.query import QueryEngine
 
     console = Console()
 
