@@ -1,15 +1,10 @@
-"""Python-specific code extractor."""
-
 from code_rag.core.types import EntityType
 from code_rag.parsing.extractors.base import BaseExtractor
 from code_rag.parsing.models import CodeEntity, ImportInfo
 
 
 class PythonExtractor(BaseExtractor):
-    """Extractor for Python source code."""
-
     def extract_imports(self, root_node, source: str) -> list[ImportInfo]:
-        """Extract Python import statements."""
         imports = []
 
         for node in self._walk_tree(root_node, {"import_statement", "import_from_statement"}):

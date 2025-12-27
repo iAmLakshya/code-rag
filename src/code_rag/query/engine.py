@@ -1,12 +1,3 @@
-"""Hybrid query engine with advanced graph reasoning and context building.
-
-This query engine combines:
-- LLM-powered query planning and decomposition
-- Multi-hop graph reasoning for structural queries
-- Rich context building for comprehensive answers
-- Intelligent hybrid ranking with graph centrality
-"""
-
 import asyncio
 import logging
 from dataclasses import dataclass
@@ -17,24 +8,18 @@ from code_rag.core.errors import QueryError
 from code_rag.embeddings.client import CollectionName, QdrantManager
 from code_rag.embeddings.embedder import OpenAIEmbedder
 from code_rag.graph.client import MemgraphClient
-from code_rag.query.context_builder import ContextBuilder, EnrichedContext, format_context_for_llm
+from code_rag.query.context import ContextBuilder, EnrichedContext, format_context_for_llm
 from code_rag.query.graph_reasoning import GraphContext, GraphReasoningEngine
-from code_rag.query.hybrid_ranker import HybridRanker, RankedResult, RankingConfig
 from code_rag.query.query_planner import QueryIntent, QueryPlan, QueryPlanner
+from code_rag.query.ranking import HybridRanker, RankedResult, RankingConfig
 from code_rag.query.responder import ResponseGenerator
 from code_rag.query.vector_search import VectorSearcher
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SEARCH_LIMIT = 15
-MAX_VECTOR_RESULTS = 20
-MAX_CENTRALITY_LOOKUPS = 10
-
 
 @dataclass
 class QueryResult:
-    """Result from the query engine."""
-
     answer: str
     sources: list[RankedResult]
     query_plan: QueryPlan
@@ -44,15 +29,7 @@ class QueryResult:
 
 
 class QueryEngine:
-    """Query engine with multi-hop graph reasoning and rich context.
-
-    Features:
-    1. LLM-powered query planning and decomposition
-    2. Multi-hop graph traversals for structural queries
-    3. Rich context building with implementation details
-    4. Intelligent ranking with graph centrality
-    5. Comprehensive answers with full code context
-    """
+    """Hybrid query engine combining graph reasoning and vector search."""
 
     def __init__(
         self,
@@ -66,19 +43,6 @@ class QueryEngine:
         ranker: HybridRanker | None = None,
         responder: ResponseGenerator | None = None,
     ):
-        """Initialize the enhanced query engine.
-
-        Args:
-            memgraph: Memgraph client.
-            qdrant: Qdrant manager.
-            embedder: OpenAI embedder.
-            planner: Query planner.
-            graph_engine: Graph reasoning engine.
-            vector_searcher: Vector searcher.
-            context_builder: Context builder.
-            ranker: Hybrid ranker.
-            responder: Response generator.
-        """
         self._memgraph = memgraph
         self._qdrant = qdrant
         self._embedder = embedder
@@ -91,7 +55,6 @@ class QueryEngine:
         self._initialized = False
 
     async def initialize(self) -> None:
-        """Initialize all components."""
         if self._initialized:
             return
 
@@ -129,7 +92,6 @@ class QueryEngine:
         logger.info("Query engine initialized")
 
     async def close(self) -> None:
-        """Close all connections."""
         logger.info("Closing query engine")
 
         if self._memgraph:
@@ -142,25 +104,13 @@ class QueryEngine:
     async def query(
         self,
         question: str,
-        limit: int = DEFAULT_SEARCH_LIMIT,
+        limit: int | None = None,
         language: str | None = None,
         use_llm_planning: bool = True,
     ) -> QueryResult:
-        """Execute an enhanced query with multi-hop reasoning.
-
-        Args:
-            question: Natural language question.
-            limit: Maximum results to return.
-            language: Optional language filter.
-            use_llm_planning: Whether to use LLM for query planning.
-
-        Returns:
-            QueryResult with answer, sources, and context.
-
-        Raises:
-            QueryError: If query execution fails.
-        """
         await self.initialize()
+        settings = get_settings()
+        limit = limit or settings.query.search_limit
 
         stats = {
             "planning_time_ms": 0,
@@ -273,25 +223,13 @@ class QueryEngine:
     async def search(
         self,
         query: str,
-        limit: int = DEFAULT_SEARCH_LIMIT,
+        limit: int | None = None,
         language: str | None = None,
         entity_type: str | None = None,
     ) -> list[RankedResult]:
-        """Execute a search without generating a response.
-
-        Args:
-            query: Search query.
-            limit: Maximum results.
-            language: Optional language filter.
-            entity_type: Optional entity type filter.
-
-        Returns:
-            List of ranked results.
-
-        Raises:
-            QueryError: If search fails.
-        """
         await self.initialize()
+        settings = get_settings()
+        limit = limit or settings.query.search_limit
 
         try:
             logger.info(f"Executing search: {query}")
@@ -332,17 +270,6 @@ class QueryEngine:
         include_callees: bool = True,
         max_depth: int = 2,
     ) -> QueryResult:
-        """Get a comprehensive explanation of an entity.
-
-        Args:
-            entity_name: Name of the entity to explain.
-            include_callers: Whether to include caller information.
-            include_callees: Whether to include callee information.
-            max_depth: Maximum depth for call graph traversal.
-
-        Returns:
-            QueryResult with comprehensive entity explanation.
-        """
         question = f"Explain how {entity_name} works and is used in the codebase"
         return await self.query(question)
 
@@ -352,29 +279,13 @@ class QueryEngine:
         target_name: str,
         max_hops: int = 5,
     ) -> QueryResult:
-        """Find call paths between two entities.
-
-        Args:
-            source_name: Name of the source entity.
-            target_name: Name of the target entity.
-            max_hops: Maximum path length.
-
-        Returns:
-            QueryResult with call path information.
-        """
         question = f"How does {source_name} eventually call {target_name}? Show the call chain."
         return await self.query(question)
 
     async def get_statistics(self) -> dict[str, Any]:
-        """Get statistics about the indexed codebase.
-
-        Returns:
-            Statistics dictionary.
-        """
         await self.initialize()
 
         try:
-            # Get graph stats
             graph_stats = await self._memgraph.execute(
                 """
                 MATCH (f:File)
@@ -388,7 +299,6 @@ class QueryEngine:
                 """
             )
 
-            # Get vector stats
             try:
                 code_info = await self._qdrant.get_collection_info(
                     CollectionName.CODE_CHUNKS.value
@@ -413,25 +323,14 @@ class QueryEngine:
         limit: int,
         language: str | None,
     ) -> list[dict[str, Any]]:
-        """Execute vector search based on query plan.
-
-        Args:
-            query: Search query.
-            plan: Query plan.
-            limit: Maximum results.
-            language: Language filter.
-
-        Returns:
-            Vector search results.
-        """
-        # Search code chunks
+        settings = get_settings()
+        max_vector = settings.query.max_vector_results
         code_results = await self._vector_searcher.search_code(
             query=query,
-            limit=min(limit, MAX_VECTOR_RESULTS),
+            limit=min(limit, max_vector),
             language=language,
         )
 
-        # For explanatory queries, also search summaries
         if plan.primary_intent in (
             QueryIntent.EXPLAIN_IMPLEMENTATION,
             QueryIntent.EXPLAIN_RELATIONSHIP,
@@ -452,15 +351,6 @@ class QueryEngine:
         graph_context: GraphContext,
         vector_results: list[dict[str, Any]],
     ) -> dict[str, dict[str, int]]:
-        """Get centrality scores for entities.
-
-        Args:
-            graph_context: Graph context.
-            vector_results: Vector results.
-
-        Returns:
-            Dictionary mapping entity names to centrality scores.
-        """
         entities = set()
 
         for entity in graph_context.primary_entities[:5]:
@@ -470,7 +360,8 @@ class QueryEngine:
             if vr.get("entity_name"):
                 entities.add(vr.get("graph_node_id") or vr.get("entity_name"))
 
-        entities = list(entities)[:MAX_CENTRALITY_LOOKUPS]
+        settings = get_settings()
+        entities = list(entities)[:settings.query.max_centrality_lookups]
 
         scores = {}
         if entities:
@@ -493,17 +384,6 @@ class QueryEngine:
         results: list[RankedResult],
         context: EnrichedContext,
     ) -> str:
-        """Generate an enhanced response using full context.
-
-        Args:
-            question: Original question.
-            plan: Query plan.
-            results: Ranked results.
-            context: Enriched context.
-
-        Returns:
-            Generated response.
-        """
         context_text = format_context_for_llm(context)
 
         system_prompt = self._get_enhanced_system_prompt(plan.primary_intent)
@@ -526,14 +406,6 @@ class QueryEngine:
         return response.choices[0].message.content.strip()
 
     def _get_enhanced_system_prompt(self, intent: QueryIntent) -> str:
-        """Get system prompt tailored to query intent.
-
-        Args:
-            intent: Query intent.
-
-        Returns:
-            System prompt.
-        """
         base_prompt = """You are an expert code analyst helping developers understand codebases.
 You have access to comprehensive context including:
 - Code snippets and implementations
@@ -568,19 +440,9 @@ Format your response using markdown for readability."""
         plan: QueryPlan,
         context_text: str,
     ) -> str:
-        """Build enhanced user prompt with full context.
-
-        Args:
-            question: Original question.
-            plan: Query plan.
-            context_text: Formatted context.
-
-        Returns:
-            User prompt.
-        """
         prompt_parts = [
             f"## Question\n{question}\n",
-            f"\n## Query Understanding\n",
+            "\n## Query Understanding\n",
             f"- Intent: {plan.primary_intent.value}\n",
         ]
 
@@ -602,10 +464,8 @@ Format your response using markdown for readability."""
         return "".join(prompt_parts)
 
     async def __aenter__(self):
-        """Async context manager entry."""
         await self.initialize()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
         await self.close()

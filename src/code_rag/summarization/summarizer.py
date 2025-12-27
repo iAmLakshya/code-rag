@@ -9,7 +9,7 @@ Supports multiple LLM providers:
 
 import asyncio
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from code_rag.config import get_settings
 from code_rag.core.errors import SummarizationError

@@ -1,18 +1,13 @@
-"""JavaScript-specific code extractor."""
-
 from code_rag.core.types import EntityType
 from code_rag.parsing.extractors.base import BaseExtractor
 from code_rag.parsing.models import CodeEntity, ImportInfo
 
 
 class JavaScriptExtractor(BaseExtractor):
-    """Extractor for JavaScript/JSX source code."""
-
     def _has_keyword(self, node, source: str, keyword: str) -> bool:
         return any(self._get_node_text(child, source) == keyword for child in node.children)
 
     def extract_imports(self, root_node, source: str) -> list[ImportInfo]:
-        """Extract JavaScript import statements."""
         imports = []
 
         for node in self._walk_tree(root_node, {"import_statement"}):
@@ -271,7 +266,6 @@ class JavaScriptExtractor(BaseExtractor):
         )
 
     def _extract_jsdoc(self, node, source: str) -> str | None:
-        """Extract JSDoc comment if present before the node."""
         start_line = self._get_node_line(node)
         lines = source.split("\n")
 

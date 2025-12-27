@@ -21,7 +21,7 @@ from code_rag.providers.base import (
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    import google.generativeai as genai
+    pass
 
 
 def _configure_google(api_key: str | None) -> None:

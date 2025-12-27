@@ -21,14 +21,14 @@ Usage:
     code_vector = await code_embedder.embed("def hello(): pass")
 """
 
+from code_rag.providers.base import (
+    BaseEmbeddingProvider,
+    BaseLLMProvider,
+    ProviderConfig,
+)
 from code_rag.providers.factory import (
     get_embedding_provider,
     get_llm_provider,
-)
-from code_rag.providers.base import (
-    BaseLLMProvider,
-    BaseEmbeddingProvider,
-    ProviderConfig,
 )
 
 __all__ = [

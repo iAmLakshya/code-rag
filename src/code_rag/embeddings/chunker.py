@@ -1,5 +1,3 @@
-"""Code chunking strategies for embedding generation."""
-
 from dataclasses import dataclass
 
 import tiktoken
@@ -13,8 +11,6 @@ CHUNK_NAME_SEPARATOR = "_part"
 
 @dataclass
 class CodeChunk:
-    """Represents a chunk of code for embedding."""
-
     content: str
     file_path: str
     entity_type: str
@@ -42,21 +38,12 @@ class CodeChunk:
 
 
 class CodeChunker:
-    """Chunks code into embeddable pieces."""
-
     def __init__(
         self,
         max_tokens: int | None = None,
         overlap_tokens: int | None = None,
         encoding_name: str = "cl100k_base",
     ):
-        """Initialize the code chunker.
-
-        Args:
-            max_tokens: Maximum tokens per chunk. Defaults to settings.
-            overlap_tokens: Token overlap between chunks. Defaults to settings.
-            encoding_name: Tiktoken encoding name.
-        """
         settings = get_settings()
         self.max_tokens = max_tokens or settings.chunk_max_tokens
         self.overlap_tokens = overlap_tokens or settings.chunk_overlap_tokens
@@ -70,15 +57,6 @@ class CodeChunker:
         parsed_file: ParsedFile,
         project_name: str | None = None,
     ) -> list[CodeChunk]:
-        """Chunk a parsed file into embeddable pieces.
-
-        Args:
-            parsed_file: Parsed file to chunk.
-            project_name: Name of the project this file belongs to.
-
-        Returns:
-            List of code chunks.
-        """
         chunks = []
         file_path = str(parsed_file.file_info.path)
         language = parsed_file.file_info.language.value
@@ -113,18 +91,6 @@ class CodeChunker:
         content_hash: str | None = None,
         project_name: str | None = None,
     ) -> list[CodeChunk]:
-        """Chunk a single code entity.
-
-        Args:
-            entity: Code entity to chunk.
-            file_path: File path.
-            language: Programming language.
-            content_hash: File content hash for incremental indexing.
-            project_name: Project name for filtering.
-
-        Returns:
-            List of chunks for this entity.
-        """
         entity_type = entity.type.value
         entity_name = entity.qualified_name
         content = self._format_entity_content(entity)
@@ -132,7 +98,7 @@ class CodeChunker:
 
         if token_count <= self.max_tokens:
             return [
-                self._create_chunk(
+                CodeChunk(
                     content=content,
                     file_path=file_path,
                     entity_type=entity_type,
@@ -158,24 +124,12 @@ class CodeChunker:
             )
 
     def _format_entity_content(self, entity: CodeEntity) -> str:
-        """Format entity content with signature, docstring, and code.
-
-        Args:
-            entity: Code entity to format.
-
-        Returns:
-            Formatted content string.
-        """
         content_parts = []
-
         if entity.signature:
             content_parts.append(entity.signature)
-
         if entity.docstring:
             content_parts.append(f'"""{entity.docstring}"""')
-
         content_parts.append(entity.code)
-
         return "\n".join(content_parts)
 
     def _chunk_text(
@@ -189,21 +143,6 @@ class CodeChunker:
         content_hash: str | None = None,
         project_name: str | None = None,
     ) -> list[CodeChunk]:
-        """Split text into chunks with overlap.
-
-        Args:
-            text: Text to chunk.
-            file_path: File path.
-            entity_type: Type of entity.
-            entity_name: Name of entity.
-            language: Programming language.
-            start_line: Starting line number.
-            content_hash: File content hash for incremental indexing.
-            project_name: Project name for filtering.
-
-        Returns:
-            List of chunks.
-        """
         lines = text.split("\n")
         chunks = []
         current_lines = []
@@ -216,7 +155,7 @@ class CodeChunker:
             if current_tokens + line_tokens > self.max_tokens and current_lines:
                 chunk_content = "\n".join(current_lines)
                 chunks.append(
-                    self._create_chunk(
+                    CodeChunk(
                         content=chunk_content,
                         file_path=file_path,
                         entity_type=entity_type,
@@ -247,7 +186,7 @@ class CodeChunker:
                 chunk_name = f"{entity_name}{CHUNK_NAME_SEPARATOR}{len(chunks) + 1}"
 
             chunks.append(
-                self._create_chunk(
+                CodeChunk(
                     content=chunk_content,
                     file_path=file_path,
                     entity_type=entity_type,
@@ -264,14 +203,6 @@ class CodeChunker:
         return chunks
 
     def _calculate_overlap_lines(self, lines: list[str]) -> list[str]:
-        """Calculate overlap lines based on token limit.
-
-        Args:
-            lines: Current lines in chunk.
-
-        Returns:
-            List of lines to keep for overlap.
-        """
         overlap_lines = []
         overlap_tokens = 0
 
@@ -284,46 +215,3 @@ class CodeChunker:
                 break
 
         return overlap_lines
-
-    def _create_chunk(
-        self,
-        content: str,
-        file_path: str,
-        entity_type: str,
-        entity_name: str,
-        language: str,
-        start_line: int,
-        end_line: int,
-        graph_node_id: str | None = None,
-        content_hash: str | None = None,
-        project_name: str | None = None,
-    ) -> CodeChunk:
-        """Create a CodeChunk instance.
-
-        Args:
-            content: Chunk content.
-            file_path: File path.
-            entity_type: Entity type.
-            entity_name: Entity name.
-            language: Programming language.
-            start_line: Starting line number.
-            end_line: Ending line number.
-            graph_node_id: Graph node ID.
-            content_hash: Content hash.
-            project_name: Project name.
-
-        Returns:
-            CodeChunk instance.
-        """
-        return CodeChunk(
-            content=content,
-            file_path=file_path,
-            entity_type=entity_type,
-            entity_name=entity_name,
-            language=language,
-            start_line=start_line,
-            end_line=end_line,
-            graph_node_id=graph_node_id,
-            content_hash=content_hash,
-            project_name=project_name,
-        )

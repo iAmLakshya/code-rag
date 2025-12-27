@@ -1,12 +1,3 @@
-"""LLM response generation for queries.
-
-Supports multiple LLM providers:
-- OpenAI (default)
-- Ollama (local)
-- Anthropic (Claude)
-- Google (Gemini)
-"""
-
 import logging
 
 from code_rag.config import get_settings
@@ -51,8 +42,6 @@ EXPLANATION_TEMPLATE = """Explain what this {language} code does:
 
 Provide a clear, concise explanation suitable for a developer."""
 
-MAX_RESPONSE_TOKENS = 1500
-MAX_EXPLANATION_TOKENS = 1000
 MAX_CONTEXT_RESULTS = 10
 MAX_CONTENT_LENGTH = 2000
 
@@ -67,14 +56,6 @@ class ResponseGenerator:
         api_key: str | None = None,
         base_url: str | None = None,
     ):
-        """Initialize response generator.
-
-        Args:
-            provider: Provider name (openai, ollama, anthropic, google).
-            model: LLM model name. Defaults to settings.
-            api_key: API key. Defaults to settings.
-            base_url: Custom base URL (for Ollama).
-        """
         settings = get_settings()
         self.temperature = settings.llm_temperature
 
@@ -97,19 +78,6 @@ class ResponseGenerator:
         results: list[SearchResult],
         max_context_results: int = MAX_CONTEXT_RESULTS,
     ) -> str:
-        """Generate a response to a question using search results.
-
-        Args:
-            question: User's question.
-            results: Search results to use as context.
-            max_context_results: Maximum results to include in context.
-
-        Returns:
-            Generated response.
-
-        Raises:
-            QueryError: If response generation fails.
-        """
         try:
             logger.debug(f"Generating response for question: {question}")
             context = self._build_context(results[:max_context_results])
@@ -125,7 +93,7 @@ class ResponseGenerator:
                         ),
                     },
                 ],
-                max_tokens=MAX_RESPONSE_TOKENS,
+                max_tokens=get_settings().query.max_response_tokens,
             )
 
             logger.debug(f"Generated response length: {len(answer)}")
@@ -141,19 +109,6 @@ class ResponseGenerator:
         language: str,
         question: str | None = None,
     ) -> str:
-        """Generate an explanation for a code snippet.
-
-        Args:
-            code: Code to explain.
-            language: Programming language.
-            question: Optional specific question about the code.
-
-        Returns:
-            Explanation text.
-
-        Raises:
-            QueryError: If explanation generation fails.
-        """
         try:
             logger.debug(f"Generating explanation for {language} code")
 
@@ -174,7 +129,7 @@ class ResponseGenerator:
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=MAX_EXPLANATION_TOKENS,
+                max_tokens=get_settings().query.max_explanation_tokens,
             )
 
             logger.debug(f"Generated explanation length: {len(answer)}")
@@ -185,14 +140,6 @@ class ResponseGenerator:
             raise QueryError("Failed to generate explanation", cause=e)
 
     def _build_context(self, results: list[SearchResult]) -> str:
-        """Build context string from search results.
-
-        Args:
-            results: Search results.
-
-        Returns:
-            Formatted context string.
-        """
         context_parts = []
 
         for i, result in enumerate(results, 1):

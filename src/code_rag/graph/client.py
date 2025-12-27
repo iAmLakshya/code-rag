@@ -1,10 +1,8 @@
-"""Memgraph client for graph database operations."""
-
 import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
+from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
 
 from code_rag.config import get_settings
 from code_rag.core.errors import ConnectionError, GraphError
@@ -13,21 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 class MemgraphClient:
-    """Async client for Memgraph graph database."""
-
     def __init__(
         self,
         uri: str | None = None,
         user: str | None = None,
         password: str | None = None,
     ):
-        """Initialize Memgraph client.
-
-        Args:
-            uri: Memgraph connection URI. Defaults to settings.
-            user: Username. Defaults to settings.
-            password: Password. Defaults to settings.
-        """
         settings = get_settings()
         self._uri = uri or settings.memgraph_uri
         self._user = user or settings.memgraph_user
@@ -76,18 +65,6 @@ class MemgraphClient:
         query: str,
         parameters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Execute a Cypher query and return results.
-
-        Args:
-            query: Cypher query string.
-            parameters: Query parameters.
-
-        Returns:
-            List of result records as dictionaries.
-
-        Raises:
-            GraphError: If query execution fails.
-        """
         try:
             async with self.session() as session:
                 result = await session.run(query, self._normalize_parameters(parameters))
@@ -102,18 +79,6 @@ class MemgraphClient:
         query: str,
         parameters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Execute a write query in a transaction.
-
-        Args:
-            query: Cypher query string.
-            parameters: Query parameters.
-
-        Returns:
-            List of result records as dictionaries.
-
-        Raises:
-            GraphError: If query execution fails.
-        """
         try:
             async with self.session() as session:
                 result = await session.execute_write(
@@ -125,11 +90,6 @@ class MemgraphClient:
             raise GraphError(f"Failed to execute write query: {query[:100]}...", cause=e) from e
 
     async def health_check(self) -> bool:
-        """Check if the database is healthy.
-
-        Returns:
-            True if healthy, False otherwise.
-        """
         try:
             await self.execute("RETURN 1 as n")
             return True
@@ -138,11 +98,6 @@ class MemgraphClient:
             return False
 
     async def clear_database(self) -> None:
-        """Clear all nodes and relationships from the database.
-
-        Raises:
-            GraphError: If clearing fails.
-        """
         try:
             await self.execute("MATCH (n) DETACH DELETE n")
             logger.info("Database cleared successfully")
@@ -162,21 +117,7 @@ class MemgraphClient:
         query: str,
         batch: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """Execute a batch query using UNWIND for high performance.
-
-        Uses UNWIND pattern for efficient bulk operations.
-        The query should reference 'row' for batch parameters.
-
-        Args:
-            query: Cypher query using 'row' for parameters (e.g., row.name).
-            batch: List of parameter dictionaries for each row.
-
-        Returns:
-            List of result records as dictionaries.
-
-        Raises:
-            GraphError: If query execution fails.
-        """
+        """Execute batch query using UNWIND. Query should reference 'row' for parameters."""
         if not batch:
             return []
 
@@ -187,7 +128,6 @@ class MemgraphClient:
                 records = await result.data()
                 return records
         except Exception as e:
-            # Ignore "already exists" constraint errors (common with MERGE)
             if "already exists" not in str(e).lower():
                 logger.error(f"Batch query execution failed: {e}")
                 logger.debug(f"Query: {batch_query}")
@@ -201,18 +141,6 @@ class MemgraphClient:
         query: str,
         batch: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """Execute a batch write query in a transaction.
-
-        Args:
-            query: Cypher query using 'row' for parameters.
-            batch: List of parameter dictionaries.
-
-        Returns:
-            List of result records.
-
-        Raises:
-            GraphError: If query execution fails.
-        """
         if not batch:
             return []
 

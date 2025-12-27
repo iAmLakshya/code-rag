@@ -1,9 +1,7 @@
-"""Vector indexer and searcher for managing code embeddings in Qdrant."""
-
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from code_rag.core.errors import IndexingError
 from code_rag.embeddings.chunker import CodeChunker
@@ -16,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CodeSearchResult:
-    """Search result for code chunks."""
-
     score: float
     file_path: str
     entity_type: str
@@ -29,8 +25,6 @@ class CodeSearchResult:
 
 @dataclass
 class SummarySearchResult:
-    """Search result for summaries."""
-
     score: float
     file_path: str
     entity_type: str
@@ -39,21 +33,12 @@ class SummarySearchResult:
 
 
 class VectorIndexer:
-    """Indexes code chunks into Qdrant vector database."""
-
     def __init__(
         self,
         qdrant: QdrantManager,
         embedder: OpenAIEmbedder,
         chunker: CodeChunker | None = None,
     ):
-        """Initialize the vector indexer.
-
-        Args:
-            qdrant: Qdrant manager instance.
-            embedder: OpenAI embedder instance.
-            chunker: Code chunker instance.
-        """
         self.qdrant = qdrant
         self.embedder = embedder
         self.chunker = chunker or CodeChunker()
@@ -65,24 +50,11 @@ class VectorIndexer:
         force: bool = False,
         project_name: str | None = None,
     ) -> int:
-        """Index a single parsed file.
-
-        Args:
-            parsed_file: Parsed file to index.
-            progress_callback: Optional progress callback.
-            force: Force re-indexing even if file hasn't changed.
-            project_name: Project name for filtering.
-
-        Returns:
-            Number of chunks indexed (0 if skipped).
-        """
         try:
             file_path = str(parsed_file.file_info.path)
             content_hash = parsed_file.file_info.content_hash
 
-            if not force and not await self._needs_indexing(
-                file_path, content_hash
-            ):
+            if not force and not await self._needs_indexing(file_path, content_hash):
                 logger.debug(f"Skipping unchanged file: {file_path}")
                 return 0
 
@@ -127,23 +99,11 @@ class VectorIndexer:
         progress_callback: Callable[[int, int], None] | None = None,
         project_name: str | None = None,
     ) -> int:
-        """Index multiple parsed files.
-
-        Args:
-            parsed_files: List of parsed files to index.
-            progress_callback: Optional progress callback.
-            project_name: Project name for filtering.
-
-        Returns:
-            Total number of chunks indexed.
-        """
         total_chunks = 0
 
         for i, parsed_file in enumerate(parsed_files):
             try:
-                chunks = await self.index_file(
-                    parsed_file, project_name=project_name
-                )
+                chunks = await self.index_file(parsed_file, project_name=project_name)
                 total_chunks += chunks
 
                 if progress_callback:
@@ -152,7 +112,9 @@ class VectorIndexer:
                 logger.error(f"Failed to index file: {e}")
                 continue
 
-        logger.info(f"Indexed total of {total_chunks} chunks from {len(parsed_files)} files")
+        logger.info(
+            f"Indexed total of {total_chunks} chunks from {len(parsed_files)} files"
+        )
         return total_chunks
 
     async def index_summary(
@@ -163,15 +125,6 @@ class VectorIndexer:
         summary: str,
         graph_node_id: str | None = None,
     ) -> None:
-        """Index an AI-generated summary.
-
-        Args:
-            file_path: Source file path.
-            entity_type: Type of entity (file, class, function).
-            entity_name: Name of the entity.
-            summary: AI-generated summary text.
-            graph_node_id: Optional graph node ID for linking.
-        """
         try:
             embedding = await self.embedder.embed(summary)
 
@@ -198,20 +151,7 @@ class VectorIndexer:
                 cause=e,
             )
 
-    async def _needs_indexing(
-        self,
-        file_path: str,
-        content_hash: str,
-    ) -> bool:
-        """Check if a file needs re-indexing.
-
-        Args:
-            file_path: File path to check.
-            content_hash: Current content hash.
-
-        Returns:
-            True if file needs indexing.
-        """
+    async def _needs_indexing(self, file_path: str, content_hash: str) -> bool:
         return await self.qdrant.file_needs_update(
             CollectionName.CODE_CHUNKS.value,
             file_path,
@@ -220,19 +160,7 @@ class VectorIndexer:
 
 
 class VectorSearcher:
-    """Searches for code and summaries in Qdrant vector database."""
-
-    def __init__(
-        self,
-        qdrant: QdrantManager,
-        embedder: OpenAIEmbedder,
-    ):
-        """Initialize the vector searcher.
-
-        Args:
-            qdrant: Qdrant manager instance.
-            embedder: OpenAI embedder instance.
-        """
+    def __init__(self, qdrant: QdrantManager, embedder: OpenAIEmbedder):
         self.qdrant = qdrant
         self.embedder = embedder
 
@@ -244,18 +172,6 @@ class VectorSearcher:
         entity_type: str | None = None,
         project_name: str | None = None,
     ) -> list[CodeSearchResult]:
-        """Search for similar code chunks.
-
-        Args:
-            query: Search query text.
-            limit: Maximum results to return.
-            language: Filter by programming language.
-            entity_type: Filter by entity type.
-            project_name: Filter by project name.
-
-        Returns:
-            List of matching code results.
-        """
         try:
             query_embedding = await self.embedder.embed(query)
 
@@ -289,16 +205,6 @@ class VectorSearcher:
         limit: int = 10,
         entity_type: str | None = None,
     ) -> list[SummarySearchResult]:
-        """Search for similar summaries.
-
-        Args:
-            query: Search query text.
-            limit: Maximum results to return.
-            entity_type: Filter by entity type.
-
-        Returns:
-            List of matching summary results.
-        """
         try:
             query_embedding = await self.embedder.embed(query)
 
@@ -322,9 +228,7 @@ class VectorSearcher:
                 cause=e,
             )
 
-    def _format_code_results(
-        self, results: list[dict]
-    ) -> list[CodeSearchResult]:
+    def _format_code_results(self, results: list[dict]) -> list[CodeSearchResult]:
         return [
             CodeSearchResult(
                 score=result["score"],

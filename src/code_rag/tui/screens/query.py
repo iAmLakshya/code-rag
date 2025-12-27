@@ -5,7 +5,7 @@ import logging
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.message import Message
-from textual.widgets import Button, Footer, Header, Input, Label, RichLog, Static
+from textual.widgets import Footer, Header, Input, Label, RichLog, Static
 from textual.worker import Worker, WorkerState
 
 from code_rag.query.engine import QueryEngine

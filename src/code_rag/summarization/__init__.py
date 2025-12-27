@@ -7,10 +7,10 @@ from code_rag.summarization.prompts import (
     SummaryPrompts,
 )
 from code_rag.summarization.summarizer import (
-    SYSTEM_MESSAGE,
-    CodeSummarizer,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
+    SYSTEM_MESSAGE,
+    CodeSummarizer,
 )
 
 __all__ = [

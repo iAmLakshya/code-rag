@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Sequence
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -40,7 +40,7 @@ class ProviderConfig:
     extra: dict = field(default_factory=dict)
 
     @classmethod
-    def from_env_prefix(cls, prefix: str) -> "ProviderConfig":
+    def from_env_prefix(cls, prefix: str) -> ProviderConfig:
         """Create config from environment variables with a prefix.
 
         Args:

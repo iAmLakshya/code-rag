@@ -1,72 +1,22 @@
-"""Base extractor interface for language-specific extraction."""
-
 from abc import ABC, abstractmethod
 
-from code_rag.core.types import EntityType
 from code_rag.parsing.models import CodeEntity, ImportInfo
 
 
 class BaseExtractor(ABC):
-    """Abstract base class for language-specific code extractors."""
+    @abstractmethod
+    def extract_imports(self, root_node, source: str) -> list[ImportInfo]: ...
 
     @abstractmethod
-    def extract_imports(self, root_node, source: str) -> list[ImportInfo]:
-        """Extract import statements from the AST.
-
-        Args:
-            root_node: Tree-sitter root node.
-            source: Original source code.
-
-        Returns:
-            List of ImportInfo objects.
-        """
-        pass
-
-    @abstractmethod
-    def extract_entities(self, root_node, source: str) -> list[CodeEntity]:
-        """Extract code entities (functions, classes) from the AST.
-
-        Args:
-            root_node: Tree-sitter root node.
-            source: Original source code.
-
-        Returns:
-            List of CodeEntity objects.
-        """
-        pass
+    def extract_entities(self, root_node, source: str) -> list[CodeEntity]: ...
 
     def _get_node_text(self, node, source: str) -> str:
-        """Get the text content of a node.
-
-        Args:
-            node: Tree-sitter node.
-            source: Original source code.
-
-        Returns:
-            Node text content.
-        """
         return source[node.start_byte:node.end_byte]
 
     def _get_node_line(self, node) -> int:
-        """Get the line number of a node (1-indexed).
-
-        Args:
-            node: Tree-sitter node.
-
-        Returns:
-            Line number.
-        """
         return node.start_point[0] + 1
 
     def _get_node_end_line(self, node) -> int:
-        """Get the ending line number of a node (1-indexed).
-
-        Args:
-            node: Tree-sitter node.
-
-        Returns:
-            Ending line number.
-        """
         return node.end_point[0] + 1
 
     def _find_child_by_type(self, node, node_type: str, find_all: bool = False):

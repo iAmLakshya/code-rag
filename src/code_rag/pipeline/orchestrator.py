@@ -1,19 +1,10 @@
-"""Pipeline orchestrator for coordinating the indexing process.
-
-Supports parallel processing for improved performance:
-- Parallel file parsing using ThreadPoolExecutor
-- Concurrent graph building with semaphore-controlled batching
-- Concurrent summarization with rate limiting
-- Concurrent embedding generation
-"""
-
 import asyncio
 import logging
 import os
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from code_rag.config import get_settings
 from code_rag.core.cache import FunctionRegistry
@@ -28,7 +19,7 @@ from code_rag.graph.builder import GraphBuilder
 from code_rag.graph.client import MemgraphClient
 from code_rag.graph.schema import GraphSchema
 from code_rag.graph.statistics import GraphStatistics
-from code_rag.parsing.call_processor import CallProcessor
+from code_rag.parsing.call_resolution import CallProcessor
 from code_rag.parsing.import_processor import ImportProcessor
 from code_rag.parsing.inheritance_tracker import InheritanceTracker
 from code_rag.parsing.models import ParsedFile
@@ -42,8 +33,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PipelineContext:
-    """Shared state for pipeline execution."""
-
     repo_path: Path
     project_name: str
     tracker: ProgressTracker
@@ -53,7 +42,6 @@ class PipelineContext:
     embedder: OpenAIEmbedder
     summarizer: CodeSummarizer
 
-    # New processors for enhanced call resolution
     function_registry: FunctionRegistry = field(default_factory=FunctionRegistry)
     import_processor: ImportProcessor | None = None
     inheritance_tracker: InheritanceTracker | None = None
@@ -101,9 +89,6 @@ class PipelineOrchestrator:
         self._api_semaphore: asyncio.Semaphore | None = None
 
     async def _init_components(self) -> PipelineContext:
-        settings = get_settings()
-
-        # Initialize semaphores for concurrent operations
         self._graph_semaphore = asyncio.Semaphore(self._max_concurrent_api)
         self._api_semaphore = asyncio.Semaphore(self._max_concurrent_api)
 
@@ -131,7 +116,6 @@ class PipelineOrchestrator:
             f"{self._max_concurrent_api} concurrent API calls"
         )
 
-        # Initialize new processors for enhanced call resolution
         function_registry = FunctionRegistry()
         import_processor = ImportProcessor(
             function_registry=function_registry,
@@ -204,7 +188,6 @@ class PipelineOrchestrator:
             await self._cleanup()
 
     async def _execute_scan_stage(self, ctx: PipelineContext) -> None:
-        """Execute file scanning stage."""
         ctx.tracker.set_stage(PipelineStage.SCANNING, message="Scanning repository...")
         logger.info(f"Scanning repository: {ctx.repo_path}")
 
@@ -225,7 +208,6 @@ class PipelineOrchestrator:
             raise IndexingError(f"File scanning failed: {e}", stage="scanning", cause=e)
 
     async def _execute_parse_stage(self, ctx: PipelineContext) -> None:
-        """Execute file parsing stage with parallel processing."""
         ctx.tracker.set_stage(
             PipelineStage.PARSING,
             total=len(ctx.scanned_files),
@@ -233,12 +215,10 @@ class PipelineOrchestrator:
         )
         logger.info(f"Parsing {len(ctx.scanned_files)} files with {self._max_workers} workers")
 
-        # Parse files in parallel using ThreadPoolExecutor
         loop = asyncio.get_event_loop()
         parsed_results: list[tuple] = []
 
         def parse_file_sync(file_info):
-            """Synchronous file parsing for thread pool."""
             try:
                 parsed = ctx.parser.parse_file(file_info)
                 return (file_info, parsed, None)
@@ -251,7 +231,6 @@ class PipelineOrchestrator:
                 for file_info in ctx.scanned_files
             ]
 
-            # Process results as they complete
             completed = 0
             for coro in asyncio.as_completed(futures):
                 result = await coro
@@ -262,7 +241,6 @@ class PipelineOrchestrator:
                     message=f"Parsed {completed}/{len(ctx.scanned_files)} files",
                 )
 
-        # Process parsed results sequentially (registry updates need to be ordered)
         total_entities = 0
         for file_info, parsed, error in parsed_results:
             if error:
@@ -276,15 +254,9 @@ class PipelineOrchestrator:
                 ctx.parsed_files.append(parsed)
                 total_entities += len(parsed.all_entities)
 
-                # Build module qualified name
                 module_qn = self._file_to_module_qn(ctx.project_name, file_info.relative_path)
-
-                # Register entities in function registry
                 self._register_entities(ctx, parsed, module_qn)
 
-                # Build import mappings for this file if parser has AST cache
-                # Note: AST caching is optional - if not available, imports are
-                # already extracted during parsing
                 ast_cache = getattr(ctx.parser, '_ast_cache', None)
                 if ctx.import_processor and ast_cache:
                     cached = ast_cache.get(file_info.path)
@@ -319,11 +291,9 @@ class PipelineOrchestrator:
         )
 
     def _file_to_module_qn(self, project_name: str, relative_path: str) -> str:
-        """Convert a file path to a module qualified name."""
         path = Path(relative_path)
         parts = list(path.with_suffix("").parts)
 
-        # Handle __init__.py specially
         if parts and parts[-1] == "__init__":
             parts = parts[:-1]
 
@@ -335,29 +305,21 @@ class PipelineOrchestrator:
         parsed: ParsedFile,
         module_qn: str,
     ) -> None:
-        """Register all entities from a parsed file in the function registry."""
         for entity in parsed.all_entities:
-            # Build qualified name with module prefix
             if entity.qualified_name.startswith(module_qn):
                 qn = entity.qualified_name
             else:
                 qn = f"{module_qn}.{entity.qualified_name}"
 
-            # Register in function registry
             entity_type = entity.type.value.capitalize()
             ctx.function_registry.register(qn, entity_type)
 
-            # Track inheritance for classes
             if entity.type.value == "class" and ctx.inheritance_tracker:
                 ctx.inheritance_tracker.register_class(
                     qn, entity.base_classes, module_qn
                 )
 
     async def _execute_graph_stage(self, ctx: PipelineContext) -> None:
-        """Execute graph building stage with batched operations.
-
-        Uses BatchGraphBuilder for high-performance bulk operations with UNWIND queries.
-        """
         ctx.tracker.set_stage(
             PipelineStage.GRAPH_BUILDING,
             total=len(ctx.parsed_files),
@@ -369,7 +331,6 @@ class PipelineOrchestrator:
         )
 
         try:
-            # Use legacy builder for file-level checks and deletes
             legacy_builder = GraphBuilder(
                 ctx.memgraph,
                 call_processor=ctx.call_processor,
@@ -377,7 +338,6 @@ class PipelineOrchestrator:
             )
             await legacy_builder.create_project(ctx.project_name, str(ctx.repo_path))
 
-            # First, check which files need updates (in parallel)
             async def check_file_update(parsed_file):
                 file_path = str(parsed_file.file_info.path)
                 async with self._graph_semaphore:
@@ -390,7 +350,6 @@ class PipelineOrchestrator:
             check_tasks = [check_file_update(pf) for pf in ctx.parsed_files]
             check_results = await asyncio.gather(*check_tasks, return_exceptions=True)
 
-            # Identify files that need updating
             files_to_update = []
             for result in check_results:
                 if isinstance(result, Exception):
@@ -403,7 +362,6 @@ class PipelineOrchestrator:
 
             logger.info(f"{len(files_to_update)} files need graph updates")
 
-            # Delete old entities for files that need updates
             for parsed_file in files_to_update:
                 file_path = str(parsed_file.file_info.path)
                 try:
@@ -411,8 +369,7 @@ class PipelineOrchestrator:
                 except Exception as e:
                     logger.warning(f"Failed to delete old entities for {file_path}: {e}")
 
-            # Use BatchGraphBuilder for efficient bulk insertion
-            batch_size = self._max_concurrent_api * 100  # Larger batches for efficiency
+            batch_size = self._max_concurrent_api * 100
             async with BatchGraphBuilder(
                 ctx.memgraph,
                 call_processor=ctx.call_processor,
@@ -441,10 +398,8 @@ class PipelineOrchestrator:
                             message=f"Graph: {parsed_file.file_info.relative_path} (Failed)",
                         )
 
-                # Final flush happens automatically on context exit
                 logger.info(f"Flushing {files_updated} files to graph database...")
 
-            # Get final statistics
             graph_stats = GraphStatistics(legacy_builder.client)
             stats = await graph_stats.get_entity_counts()
             total_nodes = sum(stats.values())
@@ -462,7 +417,6 @@ class PipelineOrchestrator:
             )
 
     async def _execute_summarize_stage(self, ctx: PipelineContext) -> None:
-        """Execute summarization stage with concurrent API calls."""
         files_to_summarize = [
             pf
             for pf in ctx.parsed_files
@@ -504,7 +458,6 @@ class PipelineOrchestrator:
         completed = 0
 
         async def summarize_item(task_type, parsed_file, entity):
-            """Summarize a single item with semaphore control."""
             async with self._api_semaphore:
                 try:
                     if task_type == "file":
@@ -523,7 +476,6 @@ class PipelineOrchestrator:
                     logger.warning(f"Failed to summarize {name}: {e}")
                     return (task_type, name, False)
 
-        # Process in batches for better progress tracking
         batch_size = self._max_concurrent_api * 3
         for i in range(0, len(summarize_tasks), batch_size):
             batch = summarize_tasks[i:i + batch_size]
@@ -551,7 +503,6 @@ class PipelineOrchestrator:
     async def _summarize_entity_safely(
         self, ctx: PipelineContext, entity, parsed_file: ParsedFile
     ) -> str | None:
-        """Summarize an entity with error handling."""
         try:
             return await ctx.summarizer.summarize_entity(
                 entity,
@@ -563,8 +514,6 @@ class PipelineOrchestrator:
             return None
 
     async def _execute_embedding_stage(self, ctx: PipelineContext) -> None:
-        """Execute embedding generation stage with concurrent processing."""
-        # Filter to only files that need embedding
         files_to_embed = [
             pf for pf in ctx.parsed_files
             if ctx.file_update_status.get(str(pf.file_info.path), True)
@@ -588,7 +537,6 @@ class PipelineOrchestrator:
         completed = len(ctx.parsed_files) - len(files_to_embed)
 
         async def embed_file(parsed_file):
-            """Embed a single file with semaphore control."""
             async with self._api_semaphore:
                 try:
                     chunks = await indexer.index_file(
@@ -600,7 +548,6 @@ class PipelineOrchestrator:
                 except Exception as e:
                     return (parsed_file, 0, e)
 
-        # Process in batches for better progress tracking
         batch_size = self._max_concurrent_api * 2
         for i in range(0, len(files_to_embed), batch_size):
             batch = files_to_embed[i:i + batch_size]
@@ -639,7 +586,6 @@ async def run_indexing(
     project_name: str | None = None,
     progress_callback: Callable | None = None,
 ) -> dict:
-    """Convenience function to run the indexing pipeline."""
     orchestrator = PipelineOrchestrator(
         repo_path=repo_path,
         project_name=project_name,

@@ -146,7 +146,7 @@ class ProjectRepository:
         try:
             entity_result = await self._memgraph.execute(entity_query, {"path": path})
             return entity_result[0].get("count", 0) if entity_result else 0
-        except Exception as e:
+        except Exception:
             logger.warning(f"Failed to get entity count for path '{path}'", exc_info=True)
             return 0
 

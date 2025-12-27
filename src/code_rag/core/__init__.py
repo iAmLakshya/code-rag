@@ -5,6 +5,17 @@ from code_rag.core.cache import (
     BoundedCache,
     FunctionRegistry,
 )
+from code_rag.core.errors import (
+    CodeRAGError,
+    ConfigurationError,
+    ConnectionError,
+    EmbeddingError,
+    GraphError,
+    IndexingError,
+    ParsingError,
+    QueryError,
+    VectorStoreError,
+)
 from code_rag.core.protocols import (
     Embedder,
     GraphClient,
@@ -16,17 +27,6 @@ from code_rag.core.types import (
     Language,
     QueryType,
     ResultSource,
-)
-from code_rag.core.errors import (
-    CodeRAGError,
-    ConfigurationError,
-    ConnectionError,
-    EmbeddingError,
-    GraphError,
-    IndexingError,
-    ParsingError,
-    QueryError,
-    VectorStoreError,
 )
 
 __all__ = [

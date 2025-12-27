@@ -7,14 +7,21 @@ This module provides:
 - Intelligent hybrid ranking with graph centrality
 """
 
+from code_rag.query.context import (
+    CodeSnippet,
+    ContextBuilder,
+    EnrichedContext,
+    EntityContext,
+    format_context_for_llm,
+)
 from code_rag.query.engine import QueryEngine, QueryResult
-from code_rag.query.graph_search import GraphSearcher
 from code_rag.query.graph_reasoning import (
     GraphContext,
     GraphNode,
     GraphPath,
     GraphReasoningEngine,
 )
+from code_rag.query.graph_search import GraphSearcher
 from code_rag.query.query_planner import (
     ExtractedEntity,
     QueryIntent,
@@ -22,14 +29,7 @@ from code_rag.query.query_planner import (
     QueryPlanner,
     SubQuery,
 )
-from code_rag.query.context_builder import (
-    CodeSnippet,
-    ContextBuilder,
-    EnrichedContext,
-    EntityContext,
-    format_context_for_llm,
-)
-from code_rag.query.hybrid_ranker import (
+from code_rag.query.ranking import (
     HybridRanker,
     RankedResult,
     RankingConfig,

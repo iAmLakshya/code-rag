@@ -1,16 +1,9 @@
-"""TypeScript-specific code extractor."""
-
 from code_rag.core.types import EntityType
 from code_rag.parsing.extractors.javascript import JavaScriptExtractor
 from code_rag.parsing.models import CodeEntity, ImportInfo
 
 
 class TypeScriptExtractor(JavaScriptExtractor):
-    """Extractor for TypeScript/TSX source code.
-
-    Extends JavaScriptExtractor since TypeScript is a superset of JavaScript.
-    """
-
     def extract_imports(self, root_node, source: str) -> list[ImportInfo]:
         imports = super().extract_imports(root_node, source)
         seen = {(imp.name, imp.source) for imp in imports}

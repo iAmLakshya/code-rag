@@ -1,10 +1,8 @@
-"""Progress tracking for the indexing pipeline."""
-
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from threading import Lock
-from typing import Callable
 
 from code_rag.core.types import PipelineStage
 
@@ -19,8 +17,6 @@ STAGE_WEIGHT_EMBEDDING = 30
 
 @dataclass
 class StageProgress:
-    """Progress for a single stage."""
-
     stage: PipelineStage
     current: int = 0
     total: int = 0
@@ -35,8 +31,6 @@ class StageProgress:
 
 @dataclass
 class PipelineProgress:
-    """Overall progress of the indexing pipeline."""
-
     current_stage: PipelineStage = PipelineStage.SCANNING
     stages: dict[PipelineStage, StageProgress] = field(default_factory=dict)
     start_time: datetime | None = None

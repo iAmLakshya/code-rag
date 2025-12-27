@@ -1,47 +1,29 @@
-"""Type inference engine for resolving method calls and variable types."""
-
 from __future__ import annotations
 
 import logging
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from code_rag.core.cache import FunctionRegistry, ASTCache
-from code_rag.parsing.type_inference.models import (
-    InferredType,
-    TypeSource,
-    VariableTypeMap,
-    TypeInferenceContext,
-)
+from code_rag.core.cache import ASTCache, FunctionRegistry
 
 if TYPE_CHECKING:
     from tree_sitter import Node
 
 logger = logging.getLogger(__name__)
 
-# Pre-compiled regex patterns
 _RE_METHOD_CHAIN = re.compile(r"\)\.[^)]*$")
 _RE_FINAL_METHOD = re.compile(r"\.([^.()]+)$")
 
 
-def safe_decode_text(node: "Node") -> str | None:
-    """Safely decode text from a tree-sitter node."""
+def safe_decode_text(node: Node) -> str | None:
     if node.text:
         return node.text.decode("utf-8")
     return None
 
 
 class TypeInferenceEngine:
-    """Handles type inference for local variables and method returns.
-
-    This engine infers types for local variables within functions by analyzing:
-    - Parameter type annotations
-    - Constructor calls (User())
-    - Method return types
-    - Loop variables
-    - Instance attributes (self.x)
-    """
+    """Infers types for local variables and method returns."""
 
     def __init__(
         self,
@@ -51,56 +33,29 @@ class TypeInferenceEngine:
         module_qn_to_file_path: dict[str, Path] | None = None,
         simple_name_lookup: dict[str, set[str]] | None = None,
     ):
-        """Initialize the type inference engine.
-
-        Args:
-            function_registry: Registry of known functions/classes.
-            import_mapping: Map of module_qn -> {local_name: imported_qn}.
-            ast_cache: Cache of parsed AST nodes.
-            module_qn_to_file_path: Map of module qualified names to file paths.
-            simple_name_lookup: Map of simple names to qualified names.
-        """
         self.function_registry = function_registry or FunctionRegistry()
         self.import_mapping = import_mapping or {}
         self.ast_cache = ast_cache or ASTCache()
         self.module_qn_to_file_path = module_qn_to_file_path or {}
         self.simple_name_lookup = simple_name_lookup or {}
 
-        # Memoization caches
         self._method_return_type_cache: dict[str, str | None] = {}
-        # Recursion guard to prevent infinite loops
         self._type_inference_in_progress: set[str] = set()
 
     def build_local_variable_type_map(
         self,
-        caller_node: "Node",
+        caller_node: Node,
         module_qn: str,
         language: str,
     ) -> dict[str, str]:
-        """Build a map of local variable names to their inferred types.
-
-        This enables resolution of instance method calls like user.get_name().
-
-        Args:
-            caller_node: Tree-sitter node for the function/method.
-            module_qn: Module qualified name.
-            language: Programming language.
-
-        Returns:
-            Dict mapping variable names to type names.
-        """
         local_var_types: dict[str, str] = {}
 
         if language != "python":
-            # For now, only Python is fully supported
-            # Other languages can be added following the reference implementation
             return local_var_types
 
         try:
             self._infer_parameter_types(caller_node, local_var_types, module_qn)
-
             self._traverse_single_pass(caller_node, local_var_types, module_qn)
-
         except Exception as e:
             logger.debug(f"Failed to build local variable type map: {e}")
 
@@ -108,11 +63,10 @@ class TypeInferenceEngine:
 
     def _infer_parameter_types(
         self,
-        caller_node: "Node",
+        caller_node: Node,
         local_var_types: dict[str, str],
         module_qn: str,
     ) -> None:
-        """Infer types from function parameters."""
         params_node = caller_node.child_by_field_name("parameters")
         if not params_node:
             return
@@ -126,8 +80,6 @@ class TypeInferenceEngine:
                     )
                     if inferred_type:
                         local_var_types[param_name] = inferred_type
-                        logger.debug(f"Inferred parameter type: {param_name} -> {inferred_type}")
-
             elif param.type == "typed_parameter":
                 param_name_node = param.child_by_field_name("name")
                 param_type_node = param.child_by_field_name("type")
@@ -142,24 +94,19 @@ class TypeInferenceEngine:
         param_name: str,
         module_qn: str,
     ) -> str | None:
-        """Infer a parameter's type by matching its name against available classes."""
         available_class_names = []
 
-        # Get classes defined in the current module
         for qn, entity_type in self.function_registry.all_entries().items():
             if entity_type == "Class" and qn.startswith(module_qn + "."):
-                # Check if it's directly in this module
                 remaining = qn[len(module_qn) + 1:]
                 if "." not in remaining:
                     available_class_names.append(remaining)
 
-        # Get imported classes
         if module_qn in self.import_mapping:
             for local_name, imported_qn in self.import_mapping[module_qn].items():
                 if self.function_registry.get(imported_qn) == "Class":
                     available_class_names.append(local_name)
 
-        # Match parameter name to class name
         param_lower = param_name.lower()
         best_match = None
         highest_score = 0
@@ -183,19 +130,16 @@ class TypeInferenceEngine:
 
     def _traverse_single_pass(
         self,
-        node: "Node",
+        node: Node,
         local_var_types: dict[str, str],
         module_qn: str,
     ) -> None:
-        """Single-pass AST traversal for all type inference operations.
+        """Single-pass AST traversal combining multiple inference operations."""
+        assignments: list[Node] = []
+        comprehensions: list[Node] = []
+        for_statements: list[Node] = []
 
-        Combines multiple traversals into one for O(N) instead of O(5*N).
-        """
-        assignments: list["Node"] = []
-        comprehensions: list["Node"] = []
-        for_statements: list["Node"] = []
-
-        stack: list["Node"] = [node]
+        stack: list[Node] = [node]
         while stack:
             current = stack.pop()
             node_type = current.type
@@ -227,11 +171,10 @@ class TypeInferenceEngine:
 
     def _process_assignment_simple(
         self,
-        assignment_node: "Node",
+        assignment_node: Node,
         local_var_types: dict[str, str],
         module_qn: str,
     ) -> None:
-        """Process simple assignments (constructors, literals)."""
         left_node = assignment_node.child_by_field_name("left")
         right_node = assignment_node.child_by_field_name("right")
 
@@ -245,15 +188,13 @@ class TypeInferenceEngine:
         inferred_type = self._infer_type_from_expression_simple(right_node, module_qn)
         if inferred_type:
             local_var_types[var_name] = inferred_type
-            logger.debug(f"Inferred type (simple): {var_name} -> {inferred_type}")
 
     def _process_assignment_complex(
         self,
-        assignment_node: "Node",
+        assignment_node: Node,
         local_var_types: dict[str, str],
         module_qn: str,
     ) -> None:
-        """Process complex assignments (method calls)."""
         left_node = assignment_node.child_by_field_name("left")
         right_node = assignment_node.child_by_field_name("right")
 
@@ -269,14 +210,12 @@ class TypeInferenceEngine:
         )
         if inferred_type:
             local_var_types[var_name] = inferred_type
-            logger.debug(f"Inferred type (complex): {var_name} -> {inferred_type}")
 
     def _infer_type_from_expression_simple(
         self,
-        node: "Node",
+        node: Node,
         module_qn: str,
     ) -> str | None:
-        """Infer type from simple expressions (constructors, literals)."""
         if node.type == "call":
             func_node = node.child_by_field_name("function")
             if func_node and func_node.type == "identifier":
@@ -293,11 +232,10 @@ class TypeInferenceEngine:
 
     def _infer_type_from_expression_complex(
         self,
-        node: "Node",
+        node: Node,
         module_qn: str,
         local_var_types: dict[str, str],
     ) -> str | None:
-        """Infer type from complex expressions (method calls)."""
         if node.type == "call":
             func_node = node.child_by_field_name("function")
             if func_node and func_node.type == "attribute":
@@ -311,11 +249,10 @@ class TypeInferenceEngine:
 
     def _analyze_comprehension(
         self,
-        comp_node: "Node",
+        comp_node: Node,
         local_var_types: dict[str, str],
         module_qn: str,
     ) -> None:
-        """Analyze a comprehension to infer loop variable types."""
         for child in comp_node.children:
             if child.type == "for_in_clause":
                 left_node = child.child_by_field_name("left")
@@ -327,11 +264,10 @@ class TypeInferenceEngine:
 
     def _analyze_for_loop(
         self,
-        for_node: "Node",
+        for_node: Node,
         local_var_types: dict[str, str],
         module_qn: str,
     ) -> None:
-        """Analyze a for loop to infer loop variable types."""
         left_node = for_node.child_by_field_name("left")
         right_node = for_node.child_by_field_name("right")
 
@@ -342,12 +278,11 @@ class TypeInferenceEngine:
 
     def _infer_loop_var_from_iterable(
         self,
-        left_node: "Node",
-        right_node: "Node",
+        left_node: Node,
+        right_node: Node,
         local_var_types: dict[str, str],
         module_qn: str,
     ) -> None:
-        """Infer loop variable type from the iterable."""
         loop_var = self._extract_variable_name(left_node)
         if not loop_var:
             return
@@ -357,15 +292,13 @@ class TypeInferenceEngine:
         )
         if element_type:
             local_var_types[loop_var] = element_type
-            logger.debug(f"Inferred loop variable type: {loop_var} -> {element_type}")
 
     def _infer_iterable_element_type(
         self,
-        iterable_node: "Node",
+        iterable_node: Node,
         local_var_types: dict[str, str],
         module_qn: str,
     ) -> str | None:
-        """Infer the element type of an iterable."""
         if iterable_node.type == "list":
             for child in iterable_node.children:
                 if child.type == "call":
@@ -386,11 +319,10 @@ class TypeInferenceEngine:
 
     def _infer_instance_variable_types_from_assignments(
         self,
-        assignments: list["Node"],
+        assignments: list[Node],
         local_var_types: dict[str, str],
         module_qn: str,
     ) -> None:
-        """Infer types for instance variables from collected assignments."""
         for assignment in assignments:
             left_node = assignment.child_by_field_name("left")
             right_node = assignment.child_by_field_name("right")
@@ -403,7 +335,6 @@ class TypeInferenceEngine:
                     )
                     if assigned_type:
                         local_var_types[left_text] = assigned_type
-                        logger.debug(f"Inferred instance variable: {left_text} -> {assigned_type}")
 
     def _infer_method_call_return_type(
         self,
@@ -411,7 +342,6 @@ class TypeInferenceEngine:
         module_qn: str,
         local_var_types: dict[str, str] | None = None,
     ) -> str | None:
-        """Infer return type of a method call via static analysis."""
         cache_key = f"{module_qn}:{method_call}"
 
         if cache_key in self._type_inference_in_progress:
@@ -432,7 +362,6 @@ class TypeInferenceEngine:
             self._type_inference_in_progress.discard(cache_key)
 
     def _is_method_chain(self, call_name: str) -> bool:
-        """Check if this appears to be a method chain with parentheses."""
         if "(" in call_name and ")" in call_name:
             return bool(_RE_METHOD_CHAIN.search(call_name))
         return False
@@ -443,7 +372,6 @@ class TypeInferenceEngine:
         module_qn: str,
         local_var_types: dict[str, str] | None = None,
     ) -> str | None:
-        """Infer return type for chained method calls."""
         match = _RE_FINAL_METHOD.search(call_name)
         if not match:
             return None
@@ -467,7 +395,6 @@ class TypeInferenceEngine:
         module_qn: str,
         local_var_types: dict[str, str] | None = None,
     ) -> str | None:
-        """Infer the type of an object expression for chained calls."""
         if "(" not in object_expr and local_var_types and object_expr in local_var_types:
             return local_var_types[object_expr]
 
@@ -484,7 +411,6 @@ class TypeInferenceEngine:
         module_qn: str,
         local_var_types: dict[str, str] | None = None,
     ) -> str | None:
-        """Infer return type for a simple method call (obj.method)."""
         if "." not in method_call:
             return None
 
@@ -495,13 +421,11 @@ class TypeInferenceEngine:
         class_name = parts[0]
         method_name = parts[-1].split("(")[0] if "(" in parts[-1] else parts[-1]
 
-        # Check local variable types
         if local_var_types and class_name in local_var_types:
             var_type = local_var_types[class_name]
             method_qn = f"{var_type}.{method_name}"
             return self._get_method_return_type_from_registry(method_qn)
 
-        # Resolve class name
         resolved_class = self._resolve_class_name(class_name, module_qn)
         if resolved_class:
             method_qn = f"{resolved_class}.{method_name}"
@@ -510,7 +434,6 @@ class TypeInferenceEngine:
         return None
 
     def _get_method_return_type_from_registry(self, method_qn: str) -> str | None:
-        """Get method return type from registry (placeholder for AST analysis)."""
         if method_qn in self._method_return_type_cache:
             return self._method_return_type_cache[method_qn]
 
@@ -518,7 +441,6 @@ class TypeInferenceEngine:
         return None
 
     def _resolve_class_name(self, class_name: str, module_qn: str) -> str | None:
-        """Convert a simple class name to its fully qualified name."""
         local_qn = f"{module_qn}.{class_name}"
         if local_qn in self.function_registry:
             return local_qn
@@ -534,8 +456,7 @@ class TypeInferenceEngine:
 
         return None
 
-    def _extract_variable_name(self, node: "Node") -> str | None:
-        """Extract variable name from assignment left side."""
+    def _extract_variable_name(self, node: Node) -> str | None:
         if node.type == "identifier":
             return safe_decode_text(node)
         return None

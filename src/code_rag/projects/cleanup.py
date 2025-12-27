@@ -1,7 +1,6 @@
 """Service for cleaning up project data from databases."""
 
 import logging
-from typing import Any
 
 from qdrant_client import models
 
@@ -44,7 +43,7 @@ class ProjectCleanupService:
                 count_filter=filter_condition,
             )
             return result.count
-        except Exception as e:
+        except Exception:
             logger.warning(f"Failed to get chunk count for path '{path}'", exc_info=True)
             return 0
 

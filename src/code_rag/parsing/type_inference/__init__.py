@@ -23,12 +23,12 @@ Usage:
 """
 
 from code_rag.parsing.type_inference.engine import TypeInferenceEngine
-from code_rag.parsing.type_inference.python_inference import PythonTypeInference
 from code_rag.parsing.type_inference.models import (
     InferredType,
-    VariableTypeMap,
     TypeInferenceContext,
+    VariableTypeMap,
 )
+from code_rag.parsing.type_inference.python_inference import PythonTypeInference
 
 __all__ = [
     "TypeInferenceEngine",

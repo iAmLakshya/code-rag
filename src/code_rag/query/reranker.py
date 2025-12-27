@@ -1,5 +1,3 @@
-"""Result fusion and reranking for hybrid search."""
-
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,8 +10,6 @@ DEFAULT_MAX_RESULTS_PER_FILE = 3
 
 @dataclass
 class SearchResult:
-    """Unified search result from any source."""
-
     source: str
     score: float
     file_path: str
@@ -27,19 +23,10 @@ class SearchResult:
     metadata: dict[str, Any] | None = None
 
     def get_key(self) -> str:
-        """Generate unique key for deduplication."""
         return f"{self.file_path}:{self.entity_name}:{self.start_line}"
 
 
 def normalize_scores(results: list[SearchResult]) -> list[SearchResult]:
-    """Normalize scores to 0-1 range.
-
-    Args:
-        results: Results to normalize.
-
-    Returns:
-        New list with normalized scores.
-    """
     if not results:
         return results
 
@@ -91,12 +78,6 @@ class ResultReranker:
         graph_weight: float = DEFAULT_GRAPH_WEIGHT,
         vector_weight: float = DEFAULT_VECTOR_WEIGHT,
     ):
-        """Initialize the reranker.
-
-        Args:
-            graph_weight: Weight for graph search results.
-            vector_weight: Weight for vector search results.
-        """
         self.graph_weight = graph_weight
         self.vector_weight = vector_weight
 
@@ -105,15 +86,6 @@ class ResultReranker:
         graph_results: list[dict],
         vector_results: list[dict],
     ) -> list[SearchResult]:
-        """Fuse results from graph and vector search.
-
-        Args:
-            graph_results: Results from graph search.
-            vector_results: Results from vector search.
-
-        Returns:
-            Fused and ranked results.
-        """
         results_map: dict[str, SearchResult] = {}
 
         for r in graph_results:
@@ -152,15 +124,6 @@ class ResultReranker:
         results: list[SearchResult],
         max_per_file: int = DEFAULT_MAX_RESULTS_PER_FILE,
     ) -> list[SearchResult]:
-        """Remove duplicate and limit results per file.
-
-        Args:
-            results: Results to deduplicate.
-            max_per_file: Maximum results per file.
-
-        Returns:
-            Deduplicated results.
-        """
         seen_keys = set()
         file_counts: dict[str, int] = {}
         deduplicated = []
@@ -182,7 +145,6 @@ class ResultReranker:
         return deduplicated
 
     def _create_graph_result(self, r: dict) -> SearchResult:
-        """Create SearchResult from graph result dictionary."""
         return SearchResult(
             source=ResultSource.GRAPH.value,
             score=self.graph_weight,
@@ -196,7 +158,6 @@ class ResultReranker:
         )
 
     def _create_vector_result(self, r: dict) -> SearchResult:
-        """Create SearchResult from vector result dictionary."""
         return SearchResult(
             source=ResultSource.VECTOR.value,
             score=r.get("score", 0) * self.vector_weight,

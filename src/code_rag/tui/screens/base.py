@@ -5,7 +5,7 @@ from typing import TypeVar
 
 from textual.screen import Screen
 from textual.widget import Widget
-from textual.widgets import Label, RichLog, Static
+from textual.widgets import Label, RichLog
 
 T = TypeVar("T", bound=Widget)
 

@@ -1,10 +1,8 @@
-"""File scanner for discovering source files in a repository."""
-
 import hashlib
+from collections.abc import Iterator
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Iterator
 
 from code_rag.config import get_settings
 from code_rag.core.types import Language
@@ -19,21 +17,12 @@ class ScanStatistics:
 
 
 class FileScanner:
-    """Scans a directory for source files to index."""
-
     def __init__(
         self,
         root_path: str | Path,
         extensions: list[str] | None = None,
         ignore_patterns: list[str] | None = None,
     ):
-        """Initialize the file scanner.
-
-        Args:
-            root_path: Root directory to scan.
-            extensions: File extensions to include. Defaults to settings.
-            ignore_patterns: Directory patterns to ignore. Defaults to settings.
-        """
         settings = get_settings()
         self.root_path = Path(root_path).resolve()
         self.extensions = set(extensions or settings.supported_extensions)
@@ -55,11 +44,6 @@ class FileScanner:
         return hashlib.sha256(content).hexdigest()
 
     def scan(self) -> Iterator[FileInfo]:
-        """Scan the directory for matching files.
-
-        Yields:
-            FileInfo objects for each discovered file.
-        """
         for file_path in self.root_path.rglob("*"):
             if file_path.is_dir():
                 continue

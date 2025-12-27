@@ -12,14 +12,13 @@ Handles Python-specific patterns for inferring variable types:
 from __future__ import annotations
 
 import logging
-import re
 from typing import TYPE_CHECKING, Any
 
 from code_rag.parsing.type_inference.models import (
     InferredType,
+    TypeInferenceContext,
     TypeSource,
     VariableTypeMap,
-    TypeInferenceContext,
 )
 
 if TYPE_CHECKING:
@@ -54,7 +53,7 @@ class PythonTypeInference:
 
     def infer_local_types(
         self,
-        function_node: "Node",
+        function_node: Node,
         context: TypeInferenceContext,
     ) -> VariableTypeMap:
         """Infer types for all local variables in a function.
@@ -93,7 +92,7 @@ class PythonTypeInference:
 
     def _infer_parameter_types(
         self,
-        function_node: "Node",
+        function_node: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> None:
@@ -151,7 +150,7 @@ class PythonTypeInference:
                         if inferred:
                             type_map.set_type(param_name, inferred)
 
-    def _collect_assignments(self, node: "Node") -> list["Node"]:
+    def _collect_assignments(self, node: Node) -> list[Node]:
         """Collect all assignment nodes in a function body.
 
         Args:
@@ -174,7 +173,7 @@ class PythonTypeInference:
 
     def _process_simple_assignment(
         self,
-        assignment: "Node",
+        assignment: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> None:
@@ -204,7 +203,7 @@ class PythonTypeInference:
 
     def _process_complex_assignment(
         self,
-        assignment: "Node",
+        assignment: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> None:
@@ -235,7 +234,7 @@ class PythonTypeInference:
 
     def _infer_simple_type(
         self,
-        expr_node: "Node",
+        expr_node: Node,
         context: TypeInferenceContext,
     ) -> InferredType | None:
         """Infer type from simple expressions.
@@ -273,7 +272,7 @@ class PythonTypeInference:
 
     def _infer_method_return_type(
         self,
-        call_node: "Node",
+        call_node: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> InferredType | None:
@@ -309,7 +308,7 @@ class PythonTypeInference:
 
     def _infer_attribute_call_type(
         self,
-        attr_node: "Node",
+        attr_node: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> InferredType | None:
@@ -356,7 +355,7 @@ class PythonTypeInference:
 
     def _get_receiver_type(
         self,
-        object_node: "Node",
+        object_node: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> str | None:
@@ -392,7 +391,7 @@ class PythonTypeInference:
 
     def _resolve_attribute_type(
         self,
-        attr_node: "Node",
+        attr_node: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> str | None:
@@ -427,7 +426,7 @@ class PythonTypeInference:
 
     def _infer_loop_variable_types(
         self,
-        function_node: "Node",
+        function_node: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> None:
@@ -461,7 +460,7 @@ class PythonTypeInference:
 
     def _infer_iterable_element_type(
         self,
-        iterable_node: "Node",
+        iterable_node: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> InferredType | None:
@@ -487,7 +486,7 @@ class PythonTypeInference:
 
     def _infer_instance_attrs_from_init(
         self,
-        function_node: "Node",
+        function_node: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> None:
@@ -510,7 +509,7 @@ class PythonTypeInference:
 
     def _analyze_self_assignments(
         self,
-        node: "Node",
+        node: Node,
         type_map: VariableTypeMap,
         context: TypeInferenceContext,
     ) -> None:
@@ -543,7 +542,7 @@ class PythonTypeInference:
 
     def _infer_type_from_expression(
         self,
-        expr_node: "Node",
+        expr_node: Node,
         context: TypeInferenceContext,
     ) -> InferredType | None:
         """Infer type from any expression.
@@ -564,7 +563,7 @@ class PythonTypeInference:
         # e.g., list comprehensions, conditional expressions, etc.
         return None
 
-    def _find_containing_class(self, node: "Node") -> "Node | None":
+    def _find_containing_class(self, node: Node) -> Node | None:
         """Find the class containing a node.
 
         Args:
@@ -580,7 +579,7 @@ class PythonTypeInference:
             current = current.parent
         return None
 
-    def _find_init_method(self, class_node: "Node") -> "Node | None":
+    def _find_init_method(self, class_node: Node) -> Node | None:
         """Find __init__ method in a class.
 
         Args:
@@ -603,7 +602,7 @@ class PythonTypeInference:
 
         return None
 
-    def _extract_variable_name(self, node: "Node") -> str | None:
+    def _extract_variable_name(self, node: Node) -> str | None:
         """Extract variable name from assignment LHS.
 
         Args:
@@ -687,7 +686,7 @@ class PythonTypeInference:
 
         return None
 
-    def _get_node_text(self, node: "Node") -> str | None:
+    def _get_node_text(self, node: Node) -> str | None:
         """Get text content of a node.
 
         Args:

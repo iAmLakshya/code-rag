@@ -1,9 +1,4 @@
-"""Custom exception hierarchy for code-rag."""
-
-
 class CodeRAGError(Exception):
-    """Base exception for all code-rag errors."""
-
     def __init__(self, message: str, cause: Exception | None = None):
         super().__init__(message)
         self.cause = cause
@@ -15,20 +10,14 @@ class CodeRAGError(Exception):
 
 
 class ConfigurationError(CodeRAGError):
-    """Raised when there's a configuration problem."""
-
     pass
 
 
 class ConnectionError(CodeRAGError):
-    """Raised when a connection to an external service fails."""
-
     pass
 
 
 class ParsingError(CodeRAGError):
-    """Raised when code parsing fails."""
-
     def __init__(
         self,
         message: str,
@@ -42,26 +31,18 @@ class ParsingError(CodeRAGError):
 
 
 class GraphError(CodeRAGError):
-    """Raised when a graph database operation fails."""
-
     pass
 
 
 class VectorStoreError(CodeRAGError):
-    """Raised when a vector store operation fails."""
-
     pass
 
 
 class EmbeddingError(CodeRAGError):
-    """Raised when embedding generation fails."""
-
     pass
 
 
 class IndexingError(CodeRAGError):
-    """Raised when indexing operations fail."""
-
     def __init__(
         self,
         message: str,
@@ -73,12 +54,8 @@ class IndexingError(CodeRAGError):
 
 
 class QueryError(CodeRAGError):
-    """Raised when query execution fails."""
-
     pass
 
 
 class SummarizationError(CodeRAGError):
-    """Raised when code summarization fails."""
-
     pass

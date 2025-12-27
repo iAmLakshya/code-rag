@@ -29,7 +29,7 @@ class SettingsScreen(BaseScreen):
                 Static(""),
                 self._create_setting_field(
                     "OpenAI API Key:",
-                    settings.openai_api_key[:10] + "..." if settings.openai_api_key else "",
+                    "sk-****" if settings.openai_api_key else "",
                     "api-key-input",
                     password=True,
                     placeholder="sk-...",

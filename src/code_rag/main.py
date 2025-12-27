@@ -66,7 +66,7 @@ def run_tui():
 async def run_index(path: str, name: str | None = None):
     """Run indexing from CLI."""
     from rich.console import Console
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+    from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 
     from code_rag.pipeline.orchestrator import PipelineOrchestrator
     from code_rag.pipeline.progress import PipelineProgress

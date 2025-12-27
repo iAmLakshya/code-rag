@@ -1,16 +1,11 @@
-"""Graph schema definitions and setup."""
-
 import logging
 
-from code_rag.core.errors import GraphError
 from code_rag.graph.client import MemgraphClient
 
 logger = logging.getLogger(__name__)
 
 
 class GraphSchema:
-    """Manages the graph database schema."""
-
     INDEX_DEFINITIONS = [
         ("Project", "name"),
         ("File", "path"),
@@ -25,11 +20,6 @@ class GraphSchema:
     ]
 
     def __init__(self, client: MemgraphClient):
-        """Initialize schema manager.
-
-        Args:
-            client: Memgraph client instance.
-        """
         self.client = client
 
     def _generate_index_queries(self) -> list[str]:
@@ -51,11 +41,6 @@ class GraphSchema:
         await self.setup()
 
     async def get_schema_info(self) -> dict:
-        """Get information about the current schema.
-
-        Returns:
-            Dictionary with node and relationship counts.
-        """
         node_counts = await self._get_node_counts()
         rel_counts = await self._get_relationship_counts()
 
@@ -67,11 +52,6 @@ class GraphSchema:
         }
 
     async def _get_node_counts(self) -> dict[str, int]:
-        """Get counts of nodes by label using single aggregation query.
-
-        Returns:
-            Dictionary mapping label to count.
-        """
         query = """
         CALL db.labels() YIELD label
         WITH label
@@ -104,11 +84,6 @@ class GraphSchema:
             return {}
 
     async def _get_relationship_counts(self) -> dict[str, int]:
-        """Get counts of relationships by type using single aggregation query.
-
-        Returns:
-            Dictionary mapping relationship type to count.
-        """
         query = """
         CALL db.relationshipTypes() YIELD relationshipType
         WITH relationshipType

@@ -1,5 +1,3 @@
-"""Tree-sitter based code parser."""
-
 from __future__ import annotations
 
 import hashlib
@@ -20,8 +18,6 @@ if TYPE_CHECKING:
 
 
 class CodeParser:
-    """Parser for extracting code entities using Tree-sitter."""
-
     LANGUAGE_MAP: ClassVar[dict[Language, str]] = {
         Language.PYTHON: "python",
         Language.JAVASCRIPT: "javascript",

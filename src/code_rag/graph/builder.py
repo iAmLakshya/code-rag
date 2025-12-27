@@ -6,13 +6,12 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from code_rag.core.errors import GraphError
 from code_rag.graph.client import MemgraphClient
 from code_rag.graph.queries import EntityQueries, FileQueries, ProjectQueries, RelationshipQueries
 from code_rag.parsing.models import CodeEntity, EntityType, ParsedFile
 
 if TYPE_CHECKING:
-    from code_rag.parsing.call_processor import CallProcessor
+    from code_rag.parsing.call_resolution import CallProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ class GraphBuilder:
     def __init__(
         self,
         client: MemgraphClient,
-        call_processor: "CallProcessor | None" = None,
+        call_processor: CallProcessor | None = None,
         project_name: str | None = None,
     ):
         """Initialize graph builder.

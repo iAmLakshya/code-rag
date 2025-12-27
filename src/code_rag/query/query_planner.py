@@ -1,5 +1,3 @@
-"""LLM-powered query planning and decomposition for advanced retrieval."""
-
 import json
 import logging
 import re
@@ -15,7 +13,6 @@ from code_rag.core.errors import QueryError
 
 logger = logging.getLogger(__name__)
 
-# Pre-compiled regex patterns for performance
 _RE_CODE_BLOCK_START = re.compile(r'^```(?:json)?\s*\n?', re.MULTILINE)
 _RE_CODE_BLOCK_END = re.compile(r'\n?```\s*$', re.MULTILINE)
 _RE_JSON_OBJECT = re.compile(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', re.DOTALL)
@@ -25,10 +22,7 @@ _RE_BACKTICK = re.compile(r"`([^`]+)`")
 
 
 class QueryIntent(Enum):
-    """High-level query intent categories."""
-
-    # Structural intents - graph-primary
-    FIND_CALLERS = "find_callers"  # What calls X?
+    FIND_CALLERS = "find_callers"
     FIND_CALLEES = "find_callees"  # What does X call?
     FIND_CALL_CHAIN = "find_call_chain"  # How does A eventually call B?
     FIND_HIERARCHY = "find_hierarchy"  # What extends/implements X?
@@ -149,12 +143,6 @@ class QueryPlanner:
         api_key: str | None = None,
         model: str | None = None,
     ):
-        """Initialize the query planner.
-
-        Args:
-            api_key: OpenAI API key.
-            model: LLM model to use.
-        """
         settings = get_settings()
         self.model = model or settings.llm_model
         self._client = AsyncOpenAI(api_key=api_key or settings.openai_api_key)
@@ -164,17 +152,6 @@ class QueryPlanner:
         wait=wait_exponential(multiplier=1, min=1, max=10),
     )
     async def plan_query(self, question: str) -> QueryPlan:
-        """Analyze a question and create an execution plan.
-
-        Args:
-            question: The user's natural language question.
-
-        Returns:
-            A QueryPlan with decomposed sub-queries and requirements.
-
-        Raises:
-            QueryError: If planning fails.
-        """
         if not question or not question.strip():
             raise QueryError("Question cannot be empty")
 
@@ -219,25 +196,12 @@ class QueryPlanner:
             return self._fallback_plan(question)
 
     def _extract_json(self, content: str) -> dict[str, Any]:
-        """Extract JSON from LLM response, handling various formats.
-
-        Args:
-            content: Raw LLM response.
-
-        Returns:
-            Parsed JSON dictionary.
-
-        Raises:
-            json.JSONDecodeError: If JSON extraction fails.
-            ValueError: If parsed JSON is not a dictionary.
-        """
         if not content:
             raise json.JSONDecodeError("Empty content", "", 0)
 
         content = content.strip()
 
         def validate_dict(result: Any) -> dict[str, Any]:
-            """Validate that parsed JSON is a dictionary."""
             if not isinstance(result, dict):
                 raise ValueError(
                     f"Expected JSON object but got {type(result).__name__}: "
@@ -280,15 +244,6 @@ class QueryPlanner:
         raise json.JSONDecodeError(f"Could not extract JSON from: {preview}", content, 0)
 
     def _build_query_plan(self, question: str, analysis: dict[str, Any]) -> QueryPlan:
-        """Build a QueryPlan from LLM analysis.
-
-        Args:
-            question: Original question.
-            analysis: Parsed LLM analysis.
-
-        Returns:
-            QueryPlan object.
-        """
         intent_str = analysis.get("primary_intent", "search_functionality")
         try:
             primary_intent = QueryIntent(intent_str)
@@ -369,14 +324,6 @@ class QueryPlanner:
         )
 
     def _determine_search_type(self, intent: QueryIntent) -> str:
-        """Determine the primary search type for an intent.
-
-        Args:
-            intent: Query intent.
-
-        Returns:
-            Search type: "graph", "vector", or "hybrid".
-        """
         graph_primary = {
             QueryIntent.FIND_CALLERS,
             QueryIntent.FIND_CALLEES,
@@ -403,14 +350,6 @@ class QueryPlanner:
             return "hybrid"
 
     def _fallback_plan(self, question: str) -> QueryPlan:
-        """Create a fallback query plan using heuristics.
-
-        Args:
-            question: Original question.
-
-        Returns:
-            QueryPlan using heuristic analysis.
-        """
         logger.debug("Using fallback heuristic query planning")
 
         question_lower = question.lower()

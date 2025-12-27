@@ -5,15 +5,17 @@ from code_rag.config.settings import (
     DatabaseSettings,
     FileSettings,
     IndexingSettings,
+    QuerySettings,
     Settings,
     get_settings,
 )
 
 __all__ = [
+    "AISettings",
+    "DatabaseSettings",
+    "FileSettings",
+    "IndexingSettings",
+    "QuerySettings",
     "Settings",
     "get_settings",
-    "DatabaseSettings",
-    "AISettings",
-    "IndexingSettings",
-    "FileSettings",
 ]

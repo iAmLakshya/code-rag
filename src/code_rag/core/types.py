@@ -1,11 +1,7 @@
-"""Shared type definitions and enums."""
-
 from enum import Enum
 
 
 class Language(str, Enum):
-    """Supported programming languages."""
-
     PYTHON = "python"
     JAVASCRIPT = "javascript"
     TYPESCRIPT = "typescript"
@@ -14,7 +10,6 @@ class Language(str, Enum):
 
     @classmethod
     def from_extension(cls, ext: str) -> "Language | None":
-        """Get language from file extension."""
         mapping = {
             ".py": cls.PYTHON,
             ".js": cls.JAVASCRIPT,
@@ -26,7 +21,6 @@ class Language(str, Enum):
 
     @property
     def extensions(self) -> list[str]:
-        """Get file extensions for this language."""
         mapping = {
             self.PYTHON: [".py"],
             self.JAVASCRIPT: [".js"],
@@ -38,8 +32,6 @@ class Language(str, Enum):
 
 
 class EntityType(str, Enum):
-    """Types of code entities."""
-
     FILE = "file"
     MODULE = "module"
     CLASS = "class"
@@ -51,8 +43,6 @@ class EntityType(str, Enum):
 
 
 class QueryType(str, Enum):
-    """Types of code queries."""
-
     STRUCTURAL = "structural"
     SEMANTIC = "semantic"
     NAVIGATIONAL = "navigational"
@@ -60,16 +50,12 @@ class QueryType(str, Enum):
 
 
 class ResultSource(str, Enum):
-    """Source of search results."""
-
     GRAPH = "graph"
     VECTOR = "vector"
     HYBRID = "hybrid"
 
 
 class PipelineStage(str, Enum):
-    """Stages in the indexing pipeline."""
-
     SCANNING = "scanning"
     PARSING = "parsing"
     GRAPH_BUILDING = "graph_building"

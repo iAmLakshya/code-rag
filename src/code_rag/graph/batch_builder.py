@@ -7,7 +7,6 @@ This provides significant performance improvements over individual queries.
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -17,7 +16,7 @@ from code_rag.graph.queries import BatchQueries, ProjectQueries
 from code_rag.parsing.models import CodeEntity, EntityType, ParsedFile
 
 if TYPE_CHECKING:
-    from code_rag.parsing.call_processor import CallProcessor
+    from code_rag.parsing.call_resolution import CallProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +61,7 @@ class BatchGraphBuilder:
     def __init__(
         self,
         client: MemgraphClient,
-        call_processor: "CallProcessor | None" = None,
+        call_processor: CallProcessor | None = None,
         project_name: str | None = None,
         batch_size: int = 1000,
     ):

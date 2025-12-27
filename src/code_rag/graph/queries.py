@@ -1,9 +1,4 @@
-"""Cypher query templates for graph operations."""
-
-
 class ProjectQueries:
-    """Project-related Cypher queries."""
-
     CREATE_PROJECT = """
     MERGE (p:Project {name: $name})
     ON CREATE SET p.created_at = datetime()
@@ -43,8 +38,6 @@ class ProjectQueries:
 
 
 class FileQueries:
-    """File-related Cypher queries."""
-
     CREATE_FILE = """
     MERGE (f:File {path: $path})
     SET f.name = $name,
@@ -93,8 +86,6 @@ class FileQueries:
 
 
 class EntityQueries:
-    """Code entity-related Cypher queries."""
-
     CREATE_CLASS = """
     MERGE (c:Class {qualified_name: $qualified_name})
     SET c.name = $name,
@@ -147,8 +138,6 @@ class EntityQueries:
 
 
 class RelationshipQueries:
-    """Relationship-related Cypher queries."""
-
     CREATE_FILE_DEFINES_CLASS = """
     MATCH (f:File {path: $file_path})
     MATCH (c:Class {qualified_name: $class_name})
@@ -185,8 +174,6 @@ class RelationshipQueries:
     MERGE (caller)-[:CALLS]->(callee)
     """
 
-    # For method calls like obj.method(), match by method name
-    # This handles polymorphic calls where we don't know the exact class
     CREATE_METHOD_CALLS_BY_NAME = """
     MATCH (caller) WHERE caller.qualified_name = $caller_name
     MATCH (callee:Method) WHERE callee.name = $method_name
@@ -195,8 +182,6 @@ class RelationshipQueries:
 
 
 class SearchQueries:
-    """Search and analysis queries."""
-
     FIND_CALLERS = """
     MATCH (caller)-[:CALLS]->(target {qualified_name: $qualified_name})
     RETURN caller.name as caller_name,
@@ -242,12 +227,8 @@ class SearchQueries:
 
 
 class BatchQueries:
-    """Batch query templates for high-performance bulk operations.
+    """Batch query templates using UNWIND for bulk operations."""
 
-    Uses UNWIND for efficient batch processing.
-    """
-
-    # Batch node creation queries (use with UNWIND $batch AS row)
     BATCH_CREATE_CLASS = """
     MERGE (c:Class {qualified_name: row.qualified_name})
     SET c.name = row.name,
@@ -304,7 +285,6 @@ class BatchQueries:
         f.indexed_at = datetime()
     """
 
-    # Batch relationship creation queries
     BATCH_CREATE_DEFINES_CLASS = """
     MATCH (f:File {path: row.file_path})
     MATCH (c:Class {qualified_name: row.class_name})

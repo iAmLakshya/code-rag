@@ -12,11 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from code_rag.embeddings.indexer import VectorIndexer, VectorSearcher
-    from code_rag.graph.builder import GraphBuilder
-    from code_rag.graph.client import MemgraphClient
-    from code_rag.pipeline.orchestrator import PipelineOrchestrator
-    from code_rag.query.engine import QueryEngine
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -303,8 +299,15 @@ def create_code_retrieval_tool(
                         error_message="Graph entry missing location data.",
                     )
 
-                # Read source code
-                full_path = project_root / file_path
+                full_path = (project_root / file_path).resolve()
+                if not full_path.is_relative_to(project_root.resolve()):
+                    return CodeSnippet(
+                        qualified_name=qualified_name,
+                        file_path=file_path,
+                        found=False,
+                        error_message="Path traversal detected - access denied.",
+                    )
+
                 if not full_path.exists():
                     return CodeSnippet(
                         qualified_name=qualified_name,
@@ -313,8 +316,16 @@ def create_code_retrieval_tool(
                         error_message=f"Source file not found: {file_path}",
                     )
 
-                with full_path.open("r", encoding="utf-8") as f:
-                    lines = f.readlines()
+                try:
+                    with full_path.open("r", encoding="utf-8", errors="replace") as f:
+                        lines = f.readlines()
+                except (OSError, PermissionError) as e:
+                    return CodeSnippet(
+                        qualified_name=qualified_name,
+                        file_path=file_path,
+                        found=False,
+                        error_message=f"Failed to read file: {e}",
+                    )
 
                 source_code = "".join(lines[start_line - 1:end_line])
 

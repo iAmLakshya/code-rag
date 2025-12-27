@@ -1,20 +1,15 @@
-"""Enhanced call processor for resolving function and method calls.
-
-This module provides sophisticated call resolution including:
-- Import-based resolution
-- Inheritance chain resolution (method calls on parent classes)
-- Super call handling (super(), super().method())
-- Chained method call resolution (a.b().c())
-- Builtin type handling (JavaScript/Python)
-- Wildcard import resolution
-"""
-
 from __future__ import annotations
 
 import logging
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from code_rag.parsing.call_resolution.builtins import (
+    JS_BUILTIN_PATTERNS,
+    JS_BUILTIN_TYPES,
+    PYTHON_BUILTINS,
+)
 
 if TYPE_CHECKING:
     from tree_sitter import Node
@@ -23,142 +18,28 @@ if TYPE_CHECKING:
     from code_rag.parsing.import_processor import ImportProcessor
     from code_rag.parsing.type_inference.engine import TypeInferenceEngine
 
-# Pre-compiled regex patterns
 _RE_METHOD_CHAIN = re.compile(r"\)\.")
 _RE_FINAL_METHOD = re.compile(r"\.([^.()]+)$")
 
 logger = logging.getLogger(__name__)
 
 
-# Built-in types and patterns for different languages
-_PYTHON_BUILTINS = {
-    "print",
-    "len",
-    "range",
-    "int",
-    "str",
-    "float",
-    "bool",
-    "list",
-    "dict",
-    "set",
-    "tuple",
-    "open",
-    "type",
-    "isinstance",
-    "hasattr",
-    "getattr",
-    "setattr",
-    "enumerate",
-    "zip",
-    "map",
-    "filter",
-    "sorted",
-    "reversed",
-    "any",
-    "all",
-    "sum",
-    "min",
-    "max",
-    "abs",
-    "round",
-    "input",
-    "super",
-    "classmethod",
-    "staticmethod",
-    "property",
-    "Exception",
-    "ValueError",
-    "TypeError",
-    "KeyError",
-    "IndexError",
-    "AttributeError",
-}
-
-_JS_BUILTIN_TYPES = {
-    "Array",
-    "Object",
-    "String",
-    "Number",
-    "Date",
-    "RegExp",
-    "Function",
-    "Map",
-    "Set",
-    "Promise",
-    "Error",
-    "Boolean",
-}
-
-_JS_BUILTIN_PATTERNS = {
-    "Object.create",
-    "Object.keys",
-    "Object.values",
-    "Object.entries",
-    "Object.assign",
-    "Array.from",
-    "Array.isArray",
-    "parseInt",
-    "parseFloat",
-    "console.log",
-    "console.error",
-    "console.warn",
-    "JSON.parse",
-    "JSON.stringify",
-    "Math.random",
-    "Math.floor",
-    "Math.ceil",
-    "Math.round",
-    "Date.now",
-}
-
-
-def safe_decode_text(node: "Node") -> str | None:
-    """Safely decode text from a tree-sitter node."""
+def safe_decode_text(node: Node) -> str | None:
     if node.text:
         return node.text.decode("utf-8")
     return None
 
 
 class CallProcessor:
-    """Handles processing and resolution of function and method calls.
-
-    This class provides sophisticated call resolution that handles:
-    - Simple function calls: foo()
-    - Method calls: obj.method()
-    - Chained calls: obj.a().b().c()
-    - Super calls: super().__init__()
-    - Imported functions: from module import func; func()
-    - Inheritance-based resolution: calls to parent class methods
-
-    Attributes:
-        function_registry: Registry of known functions/classes.
-        import_processor: Processor for import mappings.
-        type_inference: Engine for inferring variable types.
-        class_inheritance: Map of class -> parent classes.
-        project_name: Name of the current project.
-        repo_path: Root path of the repository.
-    """
-
     def __init__(
         self,
-        function_registry: "FunctionRegistry",
-        import_processor: "ImportProcessor",
-        type_inference: "TypeInferenceEngine",
+        function_registry: FunctionRegistry,
+        import_processor: ImportProcessor,
+        type_inference: TypeInferenceEngine,
         class_inheritance: dict[str, list[str]],
         project_name: str,
         repo_path: Path,
     ):
-        """Initialize the call processor.
-
-        Args:
-            function_registry: Registry of known functions/classes.
-            import_processor: Processor for import mappings.
-            type_inference: Engine for inferring variable types.
-            class_inheritance: Map of class qualified name -> list of parent qualified names.
-            project_name: Name of the current project.
-            repo_path: Root path of the repository.
-        """
         self.function_registry = function_registry
         self.import_processor = import_processor
         self.type_inference = type_inference
@@ -174,47 +55,29 @@ class CallProcessor:
         class_context: str | None = None,
         language: str = "python",
     ) -> tuple[str, str] | None:
-        """Resolve a function/method call to its qualified name and type.
-
-        Args:
-            call_name: The call expression (e.g., "obj.method", "func", "super().method").
-            module_qn: The qualified name of the current module.
-            local_var_types: Map of local variable names to their inferred types.
-            class_context: The qualified name of the enclosing class (if in a method).
-            language: The programming language.
-
-        Returns:
-            Tuple of (entity_type, qualified_name) or None if unresolved.
-        """
         if not call_name:
             return None
 
-        # Handle super calls
         if call_name == "super" or call_name.startswith("super.") or call_name.startswith("super()"):
             return self._resolve_super_call(call_name, module_qn, class_context)
 
-        # Handle chained method calls
         if "." in call_name and self._is_method_chain(call_name):
             return self._resolve_chained_call(call_name, module_qn, local_var_types)
 
-        # Handle import-resolved calls
         import_result = self._resolve_via_imports(
             call_name, module_qn, local_var_types, class_context
         )
         if import_result:
             return import_result
 
-        # Handle same-module calls
         same_module_result = self._resolve_same_module_call(call_name, module_qn)
         if same_module_result:
             return same_module_result
 
-        # Handle builtin calls
         builtin_result = self._resolve_builtin_call(call_name, language)
         if builtin_result:
             return builtin_result
 
-        # Fallback: try fuzzy matching by simple name
         return self._resolve_by_simple_name(call_name, module_qn)
 
     def _resolve_super_call(
@@ -223,21 +86,6 @@ class CallProcessor:
         module_qn: str,
         class_context: str | None,
     ) -> tuple[str, str] | None:
-        """Resolve super() calls to parent class methods.
-
-        Handles patterns like:
-        - super()  -> calls parent __init__
-        - super().__init__() -> explicit parent __init__
-        - super().method() -> parent method
-
-        Args:
-            call_name: The super call expression.
-            module_qn: Current module qualified name.
-            class_context: Enclosing class qualified name.
-
-        Returns:
-            Tuple of (entity_type, qualified_name) or None.
-        """
         if not class_context:
             logger.debug(f"No class context for super() call: {call_name}")
             return None
@@ -268,17 +116,6 @@ class CallProcessor:
         class_qn: str,
         method_name: str,
     ) -> tuple[str, str] | None:
-        """Resolve a method by searching the inheritance chain.
-
-        Uses BFS to search parent classes in MRO order.
-
-        Args:
-            class_qn: The class to start searching from.
-            method_name: The method name to find.
-
-        Returns:
-            Tuple of (entity_type, qualified_name) or None.
-        """
         if class_qn not in self.class_inheritance:
             return None
 
@@ -304,18 +141,6 @@ class CallProcessor:
         return None
 
     def _is_method_chain(self, call_name: str) -> bool:
-        """Check if this is a chained method call (not just obj.method).
-
-        Returns True for patterns like:
-        - obj.method().other() - chained calls
-        - obj().method() - call result method
-
-        Args:
-            call_name: The call expression.
-
-        Returns:
-            True if this is a method chain.
-        """
         if "(" in call_name and ")" in call_name:
             return bool(_RE_METHOD_CHAIN.search(call_name))
         return False
@@ -326,21 +151,6 @@ class CallProcessor:
         module_qn: str,
         local_var_types: dict[str, str] | None,
     ) -> tuple[str, str] | None:
-        """Resolve chained method calls like obj.method().other().
-
-        Works by:
-        1. Extracting the final method name
-        2. Inferring the return type of the preceding expression
-        3. Looking up the method on that type
-
-        Args:
-            call_name: The chained call expression.
-            module_qn: Current module qualified name.
-            local_var_types: Local variable type map.
-
-        Returns:
-            Tuple of (entity_type, qualified_name) or None.
-        """
         match = _RE_FINAL_METHOD.search(call_name)
         if not match:
             return None
@@ -375,16 +185,6 @@ class CallProcessor:
         module_qn: str,
         local_var_types: dict[str, str] | None,
     ) -> str | None:
-        """Infer the type of an expression.
-
-        Args:
-            expr: The expression to analyze.
-            module_qn: Current module qualified name.
-            local_var_types: Local variable type map.
-
-        Returns:
-            Inferred type name or None.
-        """
         if local_var_types and expr in local_var_types:
             return local_var_types[expr]
 
@@ -403,17 +203,6 @@ class CallProcessor:
         local_var_types: dict[str, str] | None,
         class_context: str | None,
     ) -> tuple[str, str] | None:
-        """Resolve a call using import mappings.
-
-        Args:
-            call_name: The call expression.
-            module_qn: Current module qualified name.
-            local_var_types: Local variable type map.
-            class_context: Enclosing class qualified name.
-
-        Returns:
-            Tuple of (entity_type, qualified_name) or None.
-        """
         import_map = self.import_processor.get_import_mapping(module_qn)
         if not import_map:
             return None
@@ -461,16 +250,6 @@ class CallProcessor:
         module_qn: str,
         import_map: dict[str, str],
     ) -> str | None:
-        """Resolve a type name to its fully qualified class name.
-
-        Args:
-            type_name: The type name (simple or qualified).
-            module_qn: Current module qualified name.
-            import_map: Import mapping for the module.
-
-        Returns:
-            Fully qualified class name or None.
-        """
         if "." in type_name:
             return type_name
 
@@ -493,15 +272,6 @@ class CallProcessor:
         class_qn: str,
         method_name: str,
     ) -> tuple[str, str] | None:
-        """Try to resolve a method on a class, including inheritance.
-
-        Args:
-            class_qn: Class qualified name.
-            method_name: Method name to find.
-
-        Returns:
-            Tuple of (entity_type, qualified_name) or None.
-        """
         method_qn = f"{class_qn}.{method_name}"
         entity_type = self.function_registry.get(method_qn)
         if entity_type:
@@ -514,15 +284,6 @@ class CallProcessor:
         call_name: str,
         module_qn: str,
     ) -> tuple[str, str] | None:
-        """Resolve a call to something in the same module.
-
-        Args:
-            call_name: The call expression (simple name).
-            module_qn: Current module qualified name.
-
-        Returns:
-            Tuple of (entity_type, qualified_name) or None.
-        """
         simple_name = call_name.split(".")[0].split("(")[0]
 
         local_qn = f"{module_qn}.{simple_name}"
@@ -538,25 +299,16 @@ class CallProcessor:
         call_name: str,
         language: str,
     ) -> tuple[str, str] | None:
-        """Resolve built-in function calls.
-
-        Args:
-            call_name: The call expression.
-            language: Programming language.
-
-        Returns:
-            Tuple of (entity_type, qualified_name) or None.
-        """
         simple_name = call_name.split("(")[0]
 
         if language == "python":
-            if simple_name in _PYTHON_BUILTINS:
+            if simple_name in PYTHON_BUILTINS:
                 return ("Function", f"builtins.{simple_name}")
 
         elif language in ("javascript", "typescript", "jsx", "tsx"):
-            if call_name in _JS_BUILTIN_PATTERNS:
+            if call_name in JS_BUILTIN_PATTERNS:
                 return ("Function", f"builtin.{call_name}")
-            if simple_name in _JS_BUILTIN_TYPES:
+            if simple_name in JS_BUILTIN_TYPES:
                 return ("Class", f"builtin.{simple_name}")
 
         return None
@@ -566,17 +318,6 @@ class CallProcessor:
         call_name: str,
         module_qn: str,
     ) -> tuple[str, str] | None:
-        """Fallback resolution using simple name matching.
-
-        Finds functions with matching simple names and ranks by distance.
-
-        Args:
-            call_name: The call expression.
-            module_qn: Current module qualified name.
-
-        Returns:
-            Tuple of (entity_type, qualified_name) or None.
-        """
         simple_name = call_name.split(".")[-1].split("(")[0]
 
         matches = self.function_registry.find_by_simple_name(simple_name)
@@ -594,17 +335,6 @@ class CallProcessor:
         return None
 
     def _calculate_distance(self, candidate_qn: str, caller_module_qn: str) -> int:
-        """Calculate distance between two qualified names.
-
-        Lower distance means more likely to be the correct resolution.
-
-        Args:
-            candidate_qn: Candidate qualified name.
-            caller_module_qn: Caller's module qualified name.
-
-        Returns:
-            Distance score (lower is better).
-        """
         caller_parts = caller_module_qn.split(".")
         candidate_parts = candidate_qn.split(".")
 
@@ -623,15 +353,6 @@ class CallProcessor:
         return distance
 
     def _resolve_class_name(self, class_name: str, module_qn: str) -> str | None:
-        """Convert a simple class name to its qualified name.
-
-        Args:
-            class_name: Simple class name.
-            module_qn: Current module qualified name.
-
-        Returns:
-            Qualified class name or None.
-        """
         local_qn = f"{module_qn}.{class_name}"
         if self.function_registry.get(local_qn) == "Class":
             return local_qn
@@ -649,20 +370,10 @@ class CallProcessor:
 
     def extract_calls_from_node(
         self,
-        node: "Node",
+        node: Node,
         source: str,
         language: str,
     ) -> list[str]:
-        """Extract all function/method calls from an AST node.
-
-        Args:
-            node: Tree-sitter node to analyze.
-            source: Source code string.
-            language: Programming language.
-
-        Returns:
-            List of call expressions.
-        """
         calls = set()
 
         stack = [node]
@@ -678,8 +389,7 @@ class CallProcessor:
 
         return list(calls)
 
-    def _is_call_node(self, node: "Node", language: str) -> bool:
-        """Check if a node is a function call."""
+    def _is_call_node(self, node: Node, language: str) -> bool:
         if language == "python":
             return node.type == "call"
         elif language in ("javascript", "typescript", "jsx", "tsx"):
@@ -689,8 +399,7 @@ class CallProcessor:
         else:
             return node.type in ("call", "call_expression")
 
-    def _get_call_name(self, node: "Node", source: str, language: str) -> str | None:
-        """Extract the call target name from a call node."""
+    def _get_call_name(self, node: Node, source: str, language: str) -> str | None:
         func_node = None
 
         if language == "python":
