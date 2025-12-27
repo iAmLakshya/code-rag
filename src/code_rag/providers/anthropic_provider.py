@@ -84,7 +84,6 @@ class AnthropicLLMProvider(BaseLLMProvider):
             SummarizationError: If API call fails.
         """
         try:
-            # Convert OpenAI message format to Anthropic format
             system_message = ""
             anthropic_messages = []
 
@@ -105,7 +104,6 @@ class AnthropicLLMProvider(BaseLLMProvider):
                 messages=anthropic_messages,
             )
 
-            # Extract text from response
             content = response.content[0].text if response.content else ""
             return content.strip()
 

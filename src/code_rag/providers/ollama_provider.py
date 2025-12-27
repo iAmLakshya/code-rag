@@ -50,12 +50,10 @@ class OllamaLLMProvider(BaseLLMProvider):
         """
         super().__init__(config)
 
-        # Use default Ollama URL if not specified
         base_url = config.base_url or DEFAULT_OLLAMA_BASE_URL
 
-        # Ollama doesn't require API key, use placeholder
         self._client = AsyncOpenAI(
-            api_key="ollama",  # Placeholder, not used
+            api_key="ollama",
             base_url=base_url,
         )
 
@@ -111,12 +109,10 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
         """
         super().__init__(config)
 
-        # Use default Ollama URL if not specified
         base_url = config.base_url or DEFAULT_OLLAMA_BASE_URL
 
-        # Ollama doesn't require API key, use placeholder
         self._client = AsyncOpenAI(
-            api_key="ollama",  # Placeholder, not used
+            api_key="ollama",
             base_url=base_url,
         )
 

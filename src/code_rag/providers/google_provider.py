@@ -90,14 +90,11 @@ class GoogleLLMProvider(BaseLLMProvider):
         try:
             import google.generativeai as genai
 
-            # Convert OpenAI message format to Google format
-            # Google uses a different chat format
             history = []
             current_message = ""
 
             for msg in messages:
                 if msg["role"] == "system":
-                    # Prepend system message to first user message
                     current_message = f"Instructions: {msg['content']}\n\n"
                 elif msg["role"] == "user":
                     current_message += msg["content"]
@@ -107,16 +104,13 @@ class GoogleLLMProvider(BaseLLMProvider):
                         current_message = ""
                     history.append({"role": "model", "parts": [msg["content"]]})
 
-            # Start chat with history
             chat = self._model.start_chat(history=history)
 
-            # Configure generation
             generation_config = genai.GenerationConfig(
                 max_output_tokens=max_tokens,
                 temperature=temperature,
             )
 
-            # Send the final user message
             response = await chat.send_message_async(
                 current_message,
                 generation_config=generation_config,

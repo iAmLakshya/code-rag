@@ -82,7 +82,6 @@ class BatchGraphBuilder:
         self._relationship_buffer = RelationshipBuffer()
         self._stats = {"nodes_created": 0, "relationships_created": 0}
 
-        # Context for call resolution
         self._current_file_path: str | None = None
         self._current_module_qn: str | None = None
         self._current_language: str | None = None
@@ -119,14 +118,12 @@ class BatchGraphBuilder:
         """
         file_path = str(parsed_file.file_info.path)
 
-        # Set context for call resolution
         self._current_file_path = file_path
         self._current_module_qn = self._file_to_module_qn(
             parsed_file.file_info.relative_path
         )
         self._current_language = parsed_file.file_info.language.value
 
-        # Buffer file node
         self._entity_buffer.files.append({
             "path": file_path,
             "name": parsed_file.file_info.path.name,
@@ -136,7 +133,6 @@ class BatchGraphBuilder:
             "summary": parsed_file.summary,
         })
 
-        # Buffer import nodes and relationships
         for imp in parsed_file.imports:
             self._entity_buffer.imports.append({
                 "name": imp.name,
@@ -151,11 +147,9 @@ class BatchGraphBuilder:
                 "import_name": imp.name,
             })
 
-        # Buffer entity nodes and relationships
         for entity in parsed_file.entities:
             await self._add_entity(entity, file_path)
 
-        # Check if we should auto-flush
         await self._check_auto_flush()
 
     async def _add_entity(
@@ -188,20 +182,17 @@ class BatchGraphBuilder:
         props = self._build_base_properties(entity, file_path)
         self._entity_buffer.classes.append(props)
 
-        # Buffer DEFINES relationship
         self._relationship_buffer.defines_class.append({
             "file_path": file_path,
             "class_name": entity.qualified_name,
         })
 
-        # Buffer EXTENDS relationships
         for base_class in entity.base_classes:
             self._relationship_buffer.extends.append({
                 "child_name": entity.qualified_name,
                 "parent_name": base_class,
             })
 
-        # Process child methods
         for child in entity.children:
             if child.type == EntityType.METHOD:
                 await self._add_method(child, file_path, entity.qualified_name)
@@ -211,13 +202,11 @@ class BatchGraphBuilder:
         props["is_async"] = entity.is_async
         self._entity_buffer.functions.append(props)
 
-        # Buffer DEFINES relationship
         self._relationship_buffer.defines_function.append({
             "file_path": file_path,
             "function_name": entity.qualified_name,
         })
 
-        # Buffer CALLS relationships
         await self._add_calls_relationships(entity.qualified_name, entity.calls)
 
     async def _add_method(
@@ -237,14 +226,12 @@ class BatchGraphBuilder:
         })
         self._entity_buffer.methods.append(props)
 
-        # Buffer DEFINES_METHOD relationship
         if class_name:
             self._relationship_buffer.defines_method.append({
                 "class_name": class_name,
                 "method_name": entity.qualified_name,
             })
 
-        # Buffer CALLS relationships with class context
         await self._add_calls_relationships(
             entity.qualified_name, entity.calls, class_context=class_name
         )
@@ -259,7 +246,6 @@ class BatchGraphBuilder:
         for call in calls_list:
             resolved_qn = None
 
-            # Try enhanced resolution with CallProcessor
             if self.call_processor and self._current_module_qn:
                 try:
                     result = self.call_processor.resolve_call(
@@ -274,7 +260,6 @@ class BatchGraphBuilder:
                 except Exception as e:
                     logger.debug(f"CallProcessor resolution failed for {call}: {e}")
 
-            # Use resolved name or fall back to original
             callee_name = resolved_qn or call
 
             self._relationship_buffer.calls.append({
@@ -311,7 +296,6 @@ class BatchGraphBuilder:
     async def flush_entities(self) -> None:
         buf = self._entity_buffer
 
-        # Flush files
         if buf.files:
             try:
                 await self.client.execute_batch(BatchQueries.BATCH_CREATE_FILE, buf.files)
@@ -320,7 +304,6 @@ class BatchGraphBuilder:
                 logger.warning(f"Failed to flush files: {e}")
             buf.files.clear()
 
-        # Flush classes
         if buf.classes:
             try:
                 await self.client.execute_batch(BatchQueries.BATCH_CREATE_CLASS, buf.classes)
@@ -329,7 +312,6 @@ class BatchGraphBuilder:
                 logger.warning(f"Failed to flush classes: {e}")
             buf.classes.clear()
 
-        # Flush functions
         if buf.functions:
             try:
                 await self.client.execute_batch(BatchQueries.BATCH_CREATE_FUNCTION, buf.functions)
@@ -338,7 +320,6 @@ class BatchGraphBuilder:
                 logger.warning(f"Failed to flush functions: {e}")
             buf.functions.clear()
 
-        # Flush methods
         if buf.methods:
             try:
                 await self.client.execute_batch(BatchQueries.BATCH_CREATE_METHOD, buf.methods)
@@ -347,7 +328,6 @@ class BatchGraphBuilder:
                 logger.warning(f"Failed to flush methods: {e}")
             buf.methods.clear()
 
-        # Flush imports
         if buf.imports:
             try:
                 await self.client.execute_batch(BatchQueries.BATCH_CREATE_IMPORT, buf.imports)
@@ -359,7 +339,6 @@ class BatchGraphBuilder:
     async def flush_relationships(self) -> None:
         buf = self._relationship_buffer
 
-        # Flush DEFINES for classes
         if buf.defines_class:
             try:
                 await self.client.execute_batch(
@@ -370,7 +349,6 @@ class BatchGraphBuilder:
                 logger.warning(f"Failed to flush defines_class: {e}")
             buf.defines_class.clear()
 
-        # Flush DEFINES for functions
         if buf.defines_function:
             try:
                 await self.client.execute_batch(
@@ -381,7 +359,6 @@ class BatchGraphBuilder:
                 logger.warning(f"Failed to flush defines_function: {e}")
             buf.defines_function.clear()
 
-        # Flush DEFINES_METHOD
         if buf.defines_method:
             try:
                 await self.client.execute_batch(
@@ -392,7 +369,6 @@ class BatchGraphBuilder:
                 logger.warning(f"Failed to flush defines_method: {e}")
             buf.defines_method.clear()
 
-        # Flush EXTENDS
         if buf.extends:
             try:
                 await self.client.execute_batch(
@@ -403,7 +379,6 @@ class BatchGraphBuilder:
                 logger.warning(f"Failed to flush extends: {e}")
             buf.extends.clear()
 
-        # Flush IMPORTS
         if buf.imports:
             try:
                 await self.client.execute_batch(
@@ -414,7 +389,6 @@ class BatchGraphBuilder:
                 logger.warning(f"Failed to flush imports: {e}")
             buf.imports.clear()
 
-        # Flush CALLS (may have many failures for unresolved targets)
         if buf.calls:
             try:
                 results = await self.client.execute_batch(

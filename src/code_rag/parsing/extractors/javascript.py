@@ -18,7 +18,6 @@ class JavaScriptExtractor(BaseExtractor):
 
             is_external = not source_value.startswith(".")
 
-            # Handle default import
             import_clause = self._find_child_by_type(node, "import_clause")
             if import_clause:
                 for child in import_clause.children:

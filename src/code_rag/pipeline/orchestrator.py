@@ -67,9 +67,11 @@ class PipelineOrchestrator:
         summarizer: CodeSummarizer | None = None,
         max_workers: int | None = None,
         max_concurrent_api: int | None = None,
+        force: bool = False,
     ):
         self.repo_path = Path(repo_path).resolve()
         self.project_name = project_name or self.repo_path.name
+        self.force = force
 
         self.tracker = ProgressTracker()
         if progress_callback:
@@ -81,7 +83,6 @@ class PipelineOrchestrator:
         self._embedder = embedder
         self._summarizer = summarizer
 
-        # Parallelization settings
         settings = get_settings()
         self._max_workers = max_workers or min(os.cpu_count() or 4, 8)
         self._max_concurrent_api = max_concurrent_api or settings.indexing.max_concurrent_requests
@@ -266,7 +267,6 @@ class PipelineOrchestrator:
                             root_node, module_qn, file_info.language.value
                         )
 
-        # Initialize CallProcessor now that we have all registries populated
         if ctx.function_registry and ctx.import_processor and ctx.inheritance_tracker:
             from code_rag.parsing.type_inference.engine import TypeInferenceEngine
             type_inference = TypeInferenceEngine(
@@ -356,11 +356,17 @@ class PipelineOrchestrator:
                     logger.warning(f"Failed to check file update status: {result}")
                     continue
                 parsed_file, file_path, needs_update = result
+                # Force flag bypasses incremental check - always update
+                if self.force:
+                    needs_update = True
                 ctx.file_update_status[file_path] = needs_update
                 if needs_update:
                     files_to_update.append(parsed_file)
 
-            logger.info(f"{len(files_to_update)} files need graph updates")
+            if self.force:
+                logger.info(f"Force mode: updating all {len(files_to_update)} files")
+            else:
+                logger.info(f"{len(files_to_update)} files need graph updates")
 
             for parsed_file in files_to_update:
                 file_path = str(parsed_file.file_info.path)
@@ -423,12 +429,9 @@ class PipelineOrchestrator:
             if ctx.file_update_status.get(str(pf.file_info.path), True)
         ]
 
-        # Collect all summarization tasks
         summarize_tasks = []
         for pf in files_to_summarize:
-            # File summary task
             summarize_tasks.append(("file", pf, None))
-            # Entity summary tasks
             for entity in pf.all_entities:
                 if entity.type.value in ("class", "function"):
                     summarize_tasks.append(("entity", pf, entity))

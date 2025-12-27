@@ -51,7 +51,6 @@ class LanguageConfig:
     display_name: str
     file_extensions: list[str]
 
-    # Tree-sitter node types
     function_node_types: list[str] = field(default_factory=list)
     class_node_types: list[str] = field(default_factory=list)
     method_node_types: list[str] = field(default_factory=list)
@@ -61,13 +60,11 @@ class LanguageConfig:
     comment_node_types: list[str] = field(default_factory=list)
     string_node_types: list[str] = field(default_factory=list)
 
-    # Tree-sitter queries (optional - for complex extractions)
     function_query: str | None = None
     class_query: str | None = None
     import_query: str | None = None
     call_query: str | None = None
 
-    # Package structure
     package_indicators: list[str] = field(default_factory=list)
     ignore_patterns: list[str] = field(default_factory=list)
 
@@ -109,7 +106,7 @@ PYTHON_CONFIG = LanguageConfig(
     file_extensions=[".py"],
     function_node_types=["function_definition"],
     class_node_types=["class_definition"],
-    method_node_types=["function_definition"],  # Methods are functions in classes
+    method_node_types=["function_definition"],
     call_node_types=["call"],
     import_node_types=["import_statement", "import_from_statement"],
     module_node_types=["module"],
@@ -211,7 +208,6 @@ TSX_CONFIG = LanguageConfig(
     package_indicators=["package.json", "tsconfig.json"],
 )
 
-# Future language configs (placeholders for expansion)
 RUST_CONFIG = LanguageConfig(
     name="rust",
     display_name="Rust",
@@ -273,10 +269,6 @@ CPP_CONFIG = LanguageConfig(
 )
 
 
-# =============================================================================
-# Language Registry
-# =============================================================================
-
 LANGUAGE_CONFIGS: dict[str, LanguageConfig] = {
     "python": PYTHON_CONFIG,
     "javascript": JAVASCRIPT_CONFIG,
@@ -289,7 +281,6 @@ LANGUAGE_CONFIGS: dict[str, LanguageConfig] = {
     "cpp": CPP_CONFIG,
 }
 
-# Extension to config mapping
 _EXTENSION_MAP: dict[str, LanguageConfig] = {}
 for config in LANGUAGE_CONFIGS.values():
     for ext in config.file_extensions:
@@ -305,11 +296,8 @@ def get_language_config(extension_or_name: str) -> LanguageConfig | None:
     Returns:
         LanguageConfig or None if not found.
     """
-    # Try as language name first
     if extension_or_name in LANGUAGE_CONFIGS:
         return LANGUAGE_CONFIGS[extension_or_name]
-
-    # Try as extension
     ext = extension_or_name if extension_or_name.startswith(".") else f".{extension_or_name}"
     return _EXTENSION_MAP.get(ext.lower())
 

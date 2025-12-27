@@ -59,7 +59,6 @@ class CodeSummarizer:
         self.temperature = temperature if temperature is not None else DEFAULT_TEMPERATURE
         self.max_concurrent = max_concurrent or settings.max_concurrent_requests
 
-        # Use provided LLM provider or create one from settings
         if llm_provider is not None:
             self._llm_provider = llm_provider
         else:
@@ -72,7 +71,6 @@ class CodeSummarizer:
                 max_tokens=self.max_tokens,
             )
 
-        # Set concurrency if provider supports it
         if hasattr(self._llm_provider, 'set_concurrency'):
             self._llm_provider.set_concurrency(self.max_concurrent)
 

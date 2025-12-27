@@ -60,7 +60,6 @@ class QueryEngine:
 
         logger.info("Initializing query engine")
 
-        # Initialize database clients
         if self._memgraph is None:
             self._memgraph = MemgraphClient()
             await self._memgraph.connect()
@@ -72,7 +71,6 @@ class QueryEngine:
         if self._embedder is None:
             self._embedder = OpenAIEmbedder()
 
-        # Initialize query components
         if self._planner is None:
             self._planner = QueryPlanner()
 
@@ -107,6 +105,7 @@ class QueryEngine:
         limit: int | None = None,
         language: str | None = None,
         use_llm_planning: bool = True,
+        project_name: str | None = None,
     ) -> QueryResult:
         await self.initialize()
         settings = get_settings()
@@ -138,7 +137,7 @@ class QueryEngine:
             start = time.time()
 
             graph_task = self._graph_engine.execute_query_plan(plan)
-            vector_task = self._execute_vector_search(question, plan, limit, language)
+            vector_task = self._execute_vector_search(question, plan, limit, language, project_name)
 
             graph_context, vector_results = await asyncio.gather(
                 graph_task,
@@ -226,6 +225,7 @@ class QueryEngine:
         limit: int | None = None,
         language: str | None = None,
         entity_type: str | None = None,
+        project_name: str | None = None,
     ) -> list[RankedResult]:
         await self.initialize()
         settings = get_settings()
@@ -234,19 +234,15 @@ class QueryEngine:
         try:
             logger.info(f"Executing search: {query}")
 
-            # Plan query
             plan = await self._planner.plan_query(query)
 
-            # Execute searches in parallel
             graph_context, vector_results = await asyncio.gather(
                 self._graph_engine.execute_query_plan(plan),
-                self._execute_vector_search(query, plan, limit * 2, language),
+                self._execute_vector_search(query, plan, limit * 2, language, project_name),
             )
 
-            # Get centrality scores
             centrality_scores = await self._get_centrality_scores(graph_context, vector_results)
 
-            # Rank results
             ranked_results = self._ranker.rank_results(
                 plan,
                 graph_context,
@@ -322,6 +318,7 @@ class QueryEngine:
         plan: QueryPlan,
         limit: int,
         language: str | None,
+        project_name: str | None = None,
     ) -> list[dict[str, Any]]:
         settings = get_settings()
         max_vector = settings.query.max_vector_results
@@ -329,6 +326,7 @@ class QueryEngine:
             query=query,
             limit=min(limit, max_vector),
             language=language,
+            project_name=project_name,
         )
 
         if plan.primary_intent in (
@@ -341,6 +339,7 @@ class QueryEngine:
             summary_results = await self._vector_searcher.search_summaries(
                 query=query,
                 limit=limit // 2,
+                project_name=project_name,
             )
             code_results.extend(summary_results)
 

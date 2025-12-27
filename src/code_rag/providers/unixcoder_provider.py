@@ -23,7 +23,6 @@ from code_rag.providers.base import BaseEmbeddingProvider, ProviderConfig
 
 logger = logging.getLogger(__name__)
 
-# Check for required dependencies
 _TORCH_AVAILABLE = False
 _TRANSFORMERS_AVAILABLE = False
 
@@ -45,7 +44,6 @@ def has_unixcoder_dependencies() -> bool:
     return _TORCH_AVAILABLE and _TRANSFORMERS_AVAILABLE
 
 
-# Only define the model if dependencies are available
 if has_unixcoder_dependencies():
     import numpy as np
     import torch
@@ -228,7 +226,6 @@ class UniXcoderEmbeddingProvider(BaseEmbeddingProvider):
     Install: pip install torch transformers
     """
 
-    # Embedding dimension for UniXcoder
     EMBEDDING_DIM = 768
 
     def __init__(
@@ -251,7 +248,6 @@ class UniXcoderEmbeddingProvider(BaseEmbeddingProvider):
                 "Install with: pip install torch transformers"
             )
 
-        # Use default config if not provided
         if config is None:
             config = ProviderConfig(
                 provider="unixcoder",
@@ -261,10 +257,8 @@ class UniXcoderEmbeddingProvider(BaseEmbeddingProvider):
         super().__init__(config)
         self.max_length = max_length
 
-        # Thread pool for running sync torch code
         self._executor = ThreadPoolExecutor(max_workers=1)
 
-        # Pre-load the model
         logger.info("Initializing UniXcoder embedding provider...")
 
     async def _embed_impl(self, texts: list[str]) -> list[list[float]]:
@@ -278,7 +272,6 @@ class UniXcoderEmbeddingProvider(BaseEmbeddingProvider):
         """
         loop = asyncio.get_event_loop()
 
-        # Run synchronous torch code in thread pool
         embeddings = await loop.run_in_executor(
             self._executor,
             embed_batch_sync,

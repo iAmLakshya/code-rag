@@ -16,7 +16,6 @@ Usage:
     embedder = get_embedding_provider()
     vector = await embedder.embed("text")
 
-    # Use UniXcoder for code-specific embeddings (768-dim vs 1536-dim for OpenAI)
     code_embedder = get_embedding_provider(provider="unixcoder")
     code_vector = await code_embedder.embed("def hello(): pass")
 """

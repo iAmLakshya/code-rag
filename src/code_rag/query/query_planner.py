@@ -23,28 +23,25 @@ _RE_BACKTICK = re.compile(r"`([^`]+)`")
 
 class QueryIntent(Enum):
     FIND_CALLERS = "find_callers"
-    FIND_CALLEES = "find_callees"  # What does X call?
-    FIND_CALL_CHAIN = "find_call_chain"  # How does A eventually call B?
-    FIND_HIERARCHY = "find_hierarchy"  # What extends/implements X?
-    FIND_IMPLEMENTATIONS = "find_implementations"  # Where is X implemented?
-    FIND_USAGES = "find_usages"  # Where is X used?
-    FIND_DEPENDENCIES = "find_dependencies"  # What does X depend on?
-    FIND_DEPENDENTS = "find_dependents"  # What depends on X?
+    FIND_CALLEES = "find_callees"
+    FIND_CALL_CHAIN = "find_call_chain"
+    FIND_HIERARCHY = "find_hierarchy"
+    FIND_IMPLEMENTATIONS = "find_implementations"
+    FIND_USAGES = "find_usages"
+    FIND_DEPENDENCIES = "find_dependencies"
+    FIND_DEPENDENTS = "find_dependents"
 
-    # Navigational intents
-    LOCATE_ENTITY = "locate_entity"  # Where is X defined?
-    LOCATE_FILE = "locate_file"  # Find file containing X
+    LOCATE_ENTITY = "locate_entity"
+    LOCATE_FILE = "locate_file"
 
-    # Explanatory intents - require rich context
-    EXPLAIN_IMPLEMENTATION = "explain_implementation"  # How does X work?
-    EXPLAIN_RELATIONSHIP = "explain_relationship"  # How does A relate to B?
-    EXPLAIN_DATA_FLOW = "explain_data_flow"  # How does data flow through X?
-    EXPLAIN_ARCHITECTURE = "explain_architecture"  # How is X architected?
+    EXPLAIN_IMPLEMENTATION = "explain_implementation"
+    EXPLAIN_RELATIONSHIP = "explain_relationship"
+    EXPLAIN_DATA_FLOW = "explain_data_flow"
+    EXPLAIN_ARCHITECTURE = "explain_architecture"
 
-    # Semantic intents - vector-primary
-    FIND_SIMILAR = "find_similar"  # Find code similar to X
-    SEARCH_FUNCTIONALITY = "search_functionality"  # Find code that does X
-    SEARCH_PATTERN = "search_pattern"  # Find pattern/approach for X
+    FIND_SIMILAR = "find_similar"
+    SEARCH_FUNCTIONALITY = "search_functionality"
+    SEARCH_PATTERN = "search_pattern"
 
 
 @dataclass

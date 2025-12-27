@@ -46,7 +46,6 @@ class FileChangeHandler:
         self.ignore_patterns = set(settings.ignore_patterns)
         self.supported_extensions = set(settings.supported_extensions)
 
-        # Debounce: track pending changes
         self._pending_changes: dict[Path, str] = {}
         self._debounce_delay = 0.5
 
@@ -224,7 +223,6 @@ class FileWatcher:
 
             content_hash = hashlib.sha256(content.encode()).hexdigest()
 
-            # Map language name to enum
             lang_map = {
                 "python": Language.PYTHON,
                 "javascript": Language.JAVASCRIPT,

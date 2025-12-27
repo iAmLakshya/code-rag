@@ -63,6 +63,7 @@ class VectorSearcher:
         limit: int = DEFAULT_SEARCH_LIMIT,
         language: str | None = None,
         entity_type: str | None = None,
+        project_name: str | None = None,
     ) -> list[dict]:
         """Search for similar code.
 
@@ -71,6 +72,7 @@ class VectorSearcher:
             limit: Maximum results.
             language: Filter by programming language.
             entity_type: Filter by entity type.
+            project_name: Filter by project name.
 
         Returns:
             List of matching code chunks with scores.
@@ -90,6 +92,8 @@ class VectorSearcher:
                 filters["language"] = language
             if entity_type:
                 filters["entity_type"] = entity_type
+            if project_name:
+                filters["project_name"] = project_name
 
             results = await self.qdrant.search(
                 collection=CollectionName.CODE_CHUNKS.value,
@@ -115,12 +119,14 @@ class VectorSearcher:
         self,
         query: str,
         limit: int = DEFAULT_SEARCH_LIMIT,
+        project_name: str | None = None,
     ) -> list[dict]:
         """Search for entities by summary.
 
         Args:
             query: Natural language search query.
             limit: Maximum results.
+            project_name: Filter by project name.
 
         Returns:
             List of matching summaries with scores.
@@ -135,10 +141,15 @@ class VectorSearcher:
             logger.debug(f"Searching summaries: query='{query}', limit={limit}")
             query_embedding = await self.embedder.embed(query)
 
+            filters = {}
+            if project_name:
+                filters["project_name"] = project_name
+
             results = await self.qdrant.search(
                 collection=CollectionName.SUMMARIES.value,
                 query_vector=query_embedding,
                 limit=limit,
+                filters=filters if filters else None,
             )
 
             logger.debug(f"Found {len(results)} summary results")

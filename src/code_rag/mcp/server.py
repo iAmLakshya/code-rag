@@ -61,26 +61,21 @@ class MCPServer:
         self.tools: dict[str, dict[str, Any]] = {}
         self._running = False
 
-        # Register tools
         self._register_tools()
 
     def _register_tools(self) -> None:
-        # Index tool
         index_tool = create_index_tool(self._create_orchestrator)
         self.tools[index_tool["name"]] = index_tool
 
-        # Query tool
         query_tool = create_query_tool(self._create_query_engine)
         self.tools[query_tool["name"]] = query_tool
 
-        # Code retrieval tool
         code_tool = create_code_retrieval_tool(
             self.repo_path,
             self._create_graph_client,
         )
         self.tools[code_tool["name"]] = code_tool
 
-        # Semantic search tool
         search_tool = create_semantic_search_tool(self._create_vector_searcher)
         self.tools[search_tool["name"]] = search_tool
 
@@ -222,13 +217,11 @@ class MCPServer:
         func = tool["function"]
 
         try:
-            # Call the tool function
             if asyncio.iscoroutinefunction(func):
                 result = await func(**arguments)
             else:
                 result = func(**arguments)
 
-            # Convert dataclass to dict if needed
             if hasattr(result, "__dict__"):
                 result_data = vars(result)
             else:
@@ -271,7 +264,6 @@ class MCPServer:
         self._running = True
         logger.info("Starting MCP server on stdio")
 
-        # Use asyncio for non-blocking stdin reading
         reader = asyncio.StreamReader()
         protocol = asyncio.StreamReaderProtocol(reader)
         await asyncio.get_event_loop().connect_read_pipe(
@@ -280,7 +272,6 @@ class MCPServer:
 
         while self._running:
             try:
-                # Read a line (JSON-RPC request)
                 line = await reader.readline()
                 if not line:
                     break
@@ -289,11 +280,9 @@ class MCPServer:
                 if not line_str:
                     continue
 
-                # Parse and handle request
                 request = json.loads(line_str)
                 response = await self.handle_request(request)
 
-                # Write response
                 response_str = json.dumps(response) + "\n"
                 sys.stdout.write(response_str)
                 sys.stdout.flush()

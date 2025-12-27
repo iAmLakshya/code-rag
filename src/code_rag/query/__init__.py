@@ -40,33 +40,27 @@ from code_rag.query.responder import ResponseGenerator
 from code_rag.query.vector_search import VectorSearcher
 
 __all__ = [
-    # Main engine
     "QueryEngine",
     "QueryResult",
-    # Query planning
     "QueryPlanner",
     "QueryPlan",
     "QueryIntent",
     "ExtractedEntity",
     "SubQuery",
-    # Graph reasoning
     "GraphReasoningEngine",
     "GraphContext",
     "GraphNode",
     "GraphPath",
     "GraphSearcher",
-    # Context building
     "ContextBuilder",
     "EnrichedContext",
     "EntityContext",
     "CodeSnippet",
     "format_context_for_llm",
-    # Ranking
     "HybridRanker",
     "RankedResult",
     "RankingConfig",
     "RankingSignal",
-    # Legacy components
     "VectorSearcher",
     "ResponseGenerator",
     "ResultReranker",

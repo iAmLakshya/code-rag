@@ -102,7 +102,6 @@ def create_index_tool(
             name = project_name or path.name
             orchestrator = orchestrator_factory(path, name)
 
-            # Run the pipeline
             stats = await orchestrator.run()
 
             return ToolResult(
@@ -269,7 +268,6 @@ def create_code_retrieval_tool(
             await client.connect()
 
             try:
-                # Query graph for entity location
                 query = """
                     MATCH (n) WHERE n.qualified_name = $qn
                     OPTIONAL MATCH (m:File)-[*]-(n)

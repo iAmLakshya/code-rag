@@ -44,10 +44,8 @@ def get_llm_provider(
     """
     settings = get_settings()
 
-    # Determine provider
     provider_name = (provider or settings.ai.llm_provider).lower()
 
-    # Build config
     config = ProviderConfig(
         provider=provider_name,
         model=model or _get_default_model(provider_name, "llm", settings),
@@ -57,7 +55,6 @@ def get_llm_provider(
         max_tokens=max_tokens or 1000,
     )
 
-    # Instantiate provider
     return _create_llm_provider(config)
 
 
@@ -88,10 +85,8 @@ def get_embedding_provider(
     """
     settings = get_settings()
 
-    # Determine provider
     provider_name = (provider or settings.ai.embedding_provider).lower()
 
-    # Build config
     config = ProviderConfig(
         provider=provider_name,
         model=model or _get_default_model(provider_name, "embedding", settings),
@@ -99,7 +94,6 @@ def get_embedding_provider(
         base_url=base_url or _get_base_url(provider_name, settings),
     )
 
-    # Instantiate provider
     return _create_embedding_provider(config)
 
 

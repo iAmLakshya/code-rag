@@ -91,7 +91,6 @@ class GraphBuilder:
         """
         file_path = str(parsed_file.file_info.path)
 
-        # Set context for call resolution
         self._current_file_path = file_path
         self._current_module_qn = self._file_to_module_qn(
             parsed_file.file_info.relative_path
@@ -218,7 +217,6 @@ class GraphBuilder:
         for call in calls_list:
             resolved_qn = None
 
-            # Try enhanced resolution with CallProcessor
             if self.call_processor and self._current_module_qn:
                 try:
                     result = self.call_processor.resolve_call(
@@ -233,11 +231,9 @@ class GraphBuilder:
                 except Exception as e:
                     logger.debug(f"CallProcessor resolution failed for {call}: {e}")
 
-            # Use resolved name or fall back to original
             callee_name = resolved_qn or call
 
             try:
-                # Try exact match by qualified name
                 await self.client.execute(
                     RelationshipQueries.CREATE_FUNCTION_CALLS,
                     {"caller_name": caller_name, "callee_name": callee_name},
@@ -247,11 +243,8 @@ class GraphBuilder:
                     f"Exact CALLS match failed from {caller_name} to {callee_name}: {e}"
                 )
 
-            # For method calls like "obj.method", also link by method name
-            # This handles polymorphic calls where we don't know the exact class
             if "." in call:
                 method_name = call.split(".")[-1]
-                # Skip common non-method calls (module.func patterns)
                 if method_name and not method_name.startswith("_"):
                     try:
                         await self.client.execute(
@@ -312,7 +305,6 @@ class GraphBuilder:
             entity.qualified_name,
         )
 
-        # Functions don't have class context
         await self._create_calls_relationships(entity.qualified_name, entity.calls)
 
     async def _create_method(
@@ -351,7 +343,6 @@ class GraphBuilder:
                     f"Failed to create DEFINES_METHOD relationship for {class_name} -> {entity.qualified_name}: {e}"
                 )
 
-        # Pass class context for better super() and inherited method resolution
         await self._create_calls_relationships(
             entity.qualified_name, entity.calls, class_context=class_name
         )
